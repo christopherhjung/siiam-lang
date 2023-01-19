@@ -9,10 +9,10 @@ mod parser;
 pub fn main() {
     let mut source = Source::new(String::from("test.si"));
     let mut lexer = Lexer::new(source);
-    let mut parser = Parser::new(lexer);
 
+    let mut parser = Parser::new(lexer);
     let module = parser.parse_module();
-    println!("{:?}", "s");
+    println!("{:?}", "finish");
 
     /*
         loop{

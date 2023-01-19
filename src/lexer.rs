@@ -50,27 +50,15 @@ pub struct Token {
 }
 #[derive(PartialEq, Copy, Clone, Debug, EnumIter)]
 pub enum TokenVariant {
-    OrOr,
-    AndAnd,
-    Inc,
-    Dec,
+    Or,
+    And,
     Not,
-    SHL, SHR,
-    Eq,
-    Ne,
-    Lt,
-    Le,
-    Gt,
-    Ge,
-    OR, XOR, AND,
-    Add,
-    Sub, MUL,
-    Div, REM,
-    AddAsgn,
-    SubAsgn,
-    MulAsgn,
-    DivAsgn,
-    Asgn,
+    Plus,
+    Minus,
+    Star,
+    Hat,
+    Slash,
+    Assign,
 
     LAngle, RAngle,
     LParen, RParen,
@@ -124,20 +112,20 @@ pub enum TokenEnter {
 
 #[derive(Debug)]
 pub struct Symbol {
-    name: String,
+    pub value: String,
 }
 
 impl Symbol{
     fn new( str : String ) -> Symbol{
         Symbol{
-            name : str.clone()
+            value: str.clone()
         }
     }
 }
 
 impl Clone for Symbol {
     fn clone(&self) -> Self {
-        Symbol::new(self.name.clone())
+        Symbol::new(self.value.clone())
     }
 }
 
@@ -217,12 +205,43 @@ impl Lexer {
         self.token.clone()
     }
 
+    fn match_sign(&mut self) -> Option<TokenVariant>{
+        if let Some(ch) = self.source.peek() {
+            let result = Some(match ch {
+                '+' => TokenVariant::Plus,
+                '-' => TokenVariant::Minus,
+                '*' => TokenVariant::Star,
+                '^' => TokenVariant::Hat,
+                '=' => TokenVariant::Assign,
+                '!' => TokenVariant::Not,
+                ',' => TokenVariant::Comma,
+                '.' => TokenVariant::Dot,
+                ':' => TokenVariant::Colon,
+                ';' => TokenVariant::Semicolon,
+                '|' => TokenVariant::Or,
+                '&' => TokenVariant::And,
+                '<' => TokenVariant::LAngle,
+                '>' => TokenVariant::RAngle,
+                '(' => TokenVariant::LParen,
+                ')' => TokenVariant::RParen,
+                '[' => TokenVariant::LBracket,
+                ']' => TokenVariant::RBracket,
+                '{' => TokenVariant::LBrace,
+                '}' => TokenVariant::RBrace,
+                _ => return None
+            });
+            self.next();
+            result
+        }else{
+            None
+        }
+    }
+
     fn next_token_impl(&mut self) {
         loop {
             self.source.reset_loc();
 
-            if self.is_eof()
-            {
+            if self.is_eof() {
                 return self.finish(TokenVariant::Eof);
             }
 
@@ -234,7 +253,6 @@ impl Lexer {
                 }
                 if self.source.last.line != self.source.current.line {
                     self.enter = TokenEnter::NL;
-                    //return self.finish(TokenVariant::NL);
                 }else if self.enter == TokenEnter::Token{
                     self.enter = TokenEnter::Space;
                 }
@@ -242,72 +260,7 @@ impl Lexer {
                 continue;
             }
 
-            // +, ++, +=
-            if self.accept_char('+') {
-                if self.accept_char('+') {
-                    return self.finish(TokenVariant::Inc);
-                }
-                if self.accept_char('=') {
-                    return self.finish(TokenVariant::AddAsgn);
-                }
-                return self.finish(TokenVariant::Add);
-            }
-
-            // -, --, -=, ->
-            if self.accept_char('-') {
-                if self.accept_char('-') {
-                    return self.finish(TokenVariant::Dec);
-                }
-                if self.accept_char('>'){
-                    return self.finish(TokenVariant::Arrow);
-                }
-                if self.accept_char('=') {
-                    return self.finish(TokenVariant::SubAsgn);
-                }
-                return self.finish(TokenVariant::Sub);
-            }
-
-            // *, *=
-            if self.accept_char('*') {
-                if self.accept_char('=') {
-                    return self.finish(TokenVariant::MulAsgn);
-                }
-                return self.finish(TokenVariant::MUL);
-            }
-
-            if self.accept_char('<') {
-                if self.accept_char('=') {
-                    return self.finish(TokenVariant::Le);
-                }
-                return self.finish(TokenVariant::Lt);
-            }
-
-            if self.accept_char('>') {
-                if self.accept_char('=') {
-                    return self.finish(TokenVariant::Ge);
-                }
-                return self.finish(TokenVariant::Gt);
-            }
-
-            // =, ==
-            if self.accept_char('=') {
-                if self.accept_char('=') {
-                    return self.finish(TokenVariant::Eq);
-                }
-                return self.finish(TokenVariant::Asgn);
-            }
-
-            if self.accept_char('!') {
-                if self.accept_char('=') {
-                    return self.finish(TokenVariant::Ne);
-                }
-                return self.finish(TokenVariant::Not);
-            }
-
             if self.accept_char('/') {
-                if self.accept_char('=') {
-                    return self.finish(TokenVariant::DivAsgn);
-                }
                 if self.accept_char('*') { // arbitrary comment
                     let mut depth = 1;
                     loop {
@@ -348,38 +301,11 @@ impl Lexer {
                     }
                     continue;
                 }
-                return self.finish(TokenVariant::Div);
+                return self.finish(TokenVariant::Slash);
             }
 
-            if self.accept_char(',') {
-                return self.finish(TokenVariant::Comma);
-            }
-            if self.accept_char(':') {
-                return self.finish(TokenVariant::Colon);
-            }
-            if self.accept_char(';') {
-                return self.finish(TokenVariant::Semicolon);
-            }
-            if self.accept_char('(') {
-                return self.finish(TokenVariant::LParen);
-            }
-            if self.accept_char(')') {
-                return self.finish(TokenVariant::RParen);
-            }
-            if self.accept_char('[') {
-                return self.finish(TokenVariant::LBracket);
-            }
-            if self.accept_char(']') {
-                return self.finish(TokenVariant::RBracket);
-            }
-            if self.accept_char('{') {
-                return self.finish(TokenVariant::LBrace);
-            }
-            if self.accept_char('}') {
-                return self.finish(TokenVariant::RBrace);
-            }
-            if self.accept_char('.') {
-                return self.finish(TokenVariant::Dot);
+            if let Some(token) = self.match_sign(){
+                return self.finish(token);
             }
 
             let mut str = String::new();
