@@ -10,7 +10,7 @@ pub fn main() {
     let mut lexer = Lexer::new(source);
 
     loop{
-        let token = lexer.nextToken();
+        let token = lexer.next_token();
         println!("{:?}", token);
         if token.variant == TokenVariant::Eof || token.variant == TokenVariant::Error{
             break

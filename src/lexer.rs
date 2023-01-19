@@ -15,7 +15,7 @@ pub struct Pos {
 }
 
 impl Pos {
-    fn zero() -> Pos{
+    pub fn zero() -> Pos{
         Pos{ line: 0, col: 0 }
     }
 }
@@ -48,21 +48,29 @@ pub struct Token {
 pub enum TokenVariant {
     OrOr,
     AndAnd,
-    INC, DEC, NOT,
+    Inc,
+    Dec, NOT,
     SHL, SHR,
-    EQ, NE, LT, LE, GT, GE,
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
     OR, XOR, AND,
-    ADD, SUB, MUL, DIV, REM,
+    ADD,
+    Sub, MUL, DIV, REM,
     AddAsgn,
     SubAsgn,
     MulAsgn,
     DivAsgn,
-    ASGN,
+    Asgn,
 
     LParen, RParen,
     LBracket, RBracket,
     LBrace, RBrace,
-    Comma, Semicolon, Colon, Arrow, DOT,
+    Comma, Semicolon, Colon, Arrow,
+    Dot,
     While, For, If, Else,
     Return,
     ID,
@@ -84,7 +92,7 @@ pub struct Symbol {
 }
 
 impl Symbol{
-    fn new( str : &String ) -> Symbol{
+    fn new( str : String ) -> Symbol{
         Symbol{
             name : str.clone()
         }
@@ -93,7 +101,7 @@ impl Symbol{
 
 impl Clone for Symbol {
     fn clone(&self) -> Self {
-        Symbol::new(&self.name)
+        Symbol::new(self.name.clone())
     }
 }
 
@@ -116,14 +124,14 @@ impl Lexer {
     }
 
     fn identifier(&mut self, str : &mut String) -> bool{
-        if self.acceptStrPred(str, sym) {
-            while self.acceptStrPred(str, sym) || self.acceptStrPred(str, dec) {}
+        if self.accept_str_pred(str, sym) {
+            while self.accept_str_pred(str, sym) || self.accept_str_pred(str, dec) {}
             return true;
         }
         return false;
     }
 
-    fn isEof(&mut self) -> bool{
+    fn is_eof(&self) -> bool{
         return self.source.peek() == None;
     }
 
@@ -133,133 +141,133 @@ impl Lexer {
         self.token.symbol = None;
     }
 
-    fn finishStr(&mut self, variant: TokenVariant, str: &String) {
+    fn finish_str(&mut self, variant: TokenVariant, str: String) {
         self.token.variant = variant;
         self.token.symbol = Some(Symbol::new(str));
     }
 
-    fn acceptChar(&mut self, expect : char) -> bool{
+    fn accept_char(&mut self, expect : char) -> bool{
         self.source.accept( |actual| actual == expect)
     }
 
-    fn acceptPred(&mut self, pred: fn(char) -> bool) -> bool{
+    fn accept_pred(&mut self, pred: fn(char) -> bool) -> bool{
         self.source.accept(pred)
     }
 
-    fn acceptStrChar(&mut self, str: &mut String, expect : char) -> bool{
-        self.source.acceptStr(str, |actual| actual == expect)
+    fn accept_str_char(&mut self, str: &mut String, expect : char) -> bool{
+        self.source.accept_str(str, |actual| actual == expect)
     }
 
-    fn acceptStrPred(&mut self, str: &mut String, pred: fn(char) -> bool) -> bool{
-        self.source.acceptStr(str, pred)
+    fn accept_str_pred(&mut self, str: &mut String, pred: fn(char) -> bool) -> bool{
+        self.source.accept_str(str, pred)
     }
 
-    pub fn nextToken(&mut self) -> Token {
-        self.nextTokenImpl();
+    pub fn next_token(&mut self) -> Token {
+        self.next_token_impl();
         self.token.loc = self.source.loc();
         self.token.clone()
     }
 
-    fn nextTokenImpl(&mut self) {
+    fn next_token_impl(&mut self) {
         loop {
-            self.source.resetLoc();
+            self.source.reset_loc();
 
-            if self.isEof()
+            if self.is_eof()
             {
                 return self.finish(TokenVariant::Eof);
             }
 
-            if self.acceptPred(space) {
+            if self.accept_pred(space) {
                 loop {
-                    if !self.acceptPred(space) {
+                    if !self.accept_pred(space) {
                         break;
                     }
                 }
-                if self.source.last.line != self.source.peek.line && !self.last_nl {
+                if self.source.last.line != self.source.current.line && !self.last_nl {
                     return self.finish(TokenVariant::NL);
                 }
                 continue;
             }
 
             // +, ++, +=
-            if self.acceptChar('+') {
-                if self.acceptChar('+') {
-                    return self.finish(TokenVariant::INC);
+            if self.accept_char('+') {
+                if self.accept_char('+') {
+                    return self.finish(TokenVariant::Inc);
                 }
-                if self.acceptChar('=') {
+                if self.accept_char('=') {
                     return self.finish(TokenVariant::AddAsgn);
                 }
                 return self.finish(TokenVariant::ADD);
             }
 
             // -, --, -=, ->
-            if self.acceptChar('-') {
-                if self.acceptChar('-') {
-                    return self.finish(TokenVariant::DEC);
+            if self.accept_char('-') {
+                if self.accept_char('-') {
+                    return self.finish(TokenVariant::Dec);
                 }
-                if self.acceptChar('>'){
+                if self.accept_char('>'){
                     return self.finish(TokenVariant::Arrow);
                 }
-                if self.acceptChar('=') {
+                if self.accept_char('=') {
                     return self.finish(TokenVariant::SubAsgn);
                 }
-                return self.finish(TokenVariant::SUB);
+                return self.finish(TokenVariant::Sub);
             }
 
             // *, *=
-            if self.acceptChar('*') {
-                if self.acceptChar('=') {
+            if self.accept_char('*') {
+                if self.accept_char('=') {
                     return self.finish(TokenVariant::MulAsgn);
                 }
                 return self.finish(TokenVariant::MUL);
             }
 
-            if self.acceptChar('<') {
-                if self.acceptChar('=') {
-                    return self.finish(TokenVariant::LE);
+            if self.accept_char('<') {
+                if self.accept_char('=') {
+                    return self.finish(TokenVariant::Le);
                 }
-                return self.finish(TokenVariant::LT);
+                return self.finish(TokenVariant::Lt);
             }
 
-            if self.acceptChar('>') {
-                if self.acceptChar('=') {
-                    return self.finish(TokenVariant::GE);
+            if self.accept_char('>') {
+                if self.accept_char('=') {
+                    return self.finish(TokenVariant::Ge);
                 }
-                return self.finish(TokenVariant::GT);
+                return self.finish(TokenVariant::Gt);
             }
 
             // =, ==
-            if self.acceptChar('=') {
-                if self.acceptChar('=') {
-                    return self.finish(TokenVariant::EQ);
+            if self.accept_char('=') {
+                if self.accept_char('=') {
+                    return self.finish(TokenVariant::Eq);
                 }
-                return self.finish(TokenVariant::ASGN);
+                return self.finish(TokenVariant::Asgn);
             }
 
-            if self.acceptChar('!') {
-                if self.acceptChar('=') {
-                    return self.finish(TokenVariant::NE);
+            if self.accept_char('!') {
+                if self.accept_char('=') {
+                    return self.finish(TokenVariant::Ne);
                 }
                 return self.finish(TokenVariant::Error);
             }
 
-            if self.acceptChar('/') {
-                if self.acceptChar('=') {
+            if self.accept_char('/') {
+                if self.accept_char('=') {
                     return self.finish(TokenVariant::DivAsgn);
                 }
-                if self.acceptChar('*') { // arbitrary comment
+                if self.accept_char('*') { // arbitrary comment
                     let mut depth = 1;
                     loop {
-                        if self.isEof() {
+                        if self.is_eof() {
                             return self.finish(TokenVariant::Error);
                         }
 
-                        if self.acceptChar('/') & &self.acceptChar('*') {
+                        if self.accept_char('/') & &self.accept_char('*') {
                             depth += 1;
-                        } else if self.acceptChar('*') {
-                            if self.acceptChar('/') {
-                                depth-=1;
-                                if (depth == 0) {
+                        } else if self.accept_char('*') {
+                            if self.accept_char('/') {
+                                depth -= 1;
+                                if depth == 0 {
                                     break;
                                 }
                             }
@@ -269,13 +277,13 @@ impl Lexer {
                     }
                     continue;
                 }
-                if self.acceptChar('/') {
+                if self.accept_char('/') {
                     loop {
-                        if self.isEof() {
+                        if self.is_eof() {
                             return self.finish(TokenVariant::Error);
                         };
 
-                        if self.acceptChar('\n') {
+                        if self.accept_char('\n') {
                             break;
                         } else {
                             self.next();
@@ -286,35 +294,35 @@ impl Lexer {
                 return self.finish(TokenVariant::DIV);
             }
 
-            if self.acceptChar(',') {
+            if self.accept_char(',') {
                 return self.finish(TokenVariant::Comma);
             }
-            if self.acceptChar(':') {
+            if self.accept_char(':') {
                 return self.finish(TokenVariant::Colon);
             }
-            if self.acceptChar(';') {
+            if self.accept_char(';') {
                 return self.finish(TokenVariant::Semicolon);
             }
-            if self.acceptChar('(') {
+            if self.accept_char('(') {
                 return self.finish(TokenVariant::LParen);
             }
-            if self.acceptChar(')') {
+            if self.accept_char(')') {
                 return self.finish(TokenVariant::RParen);
             }
-            if self.acceptChar('[') {
+            if self.accept_char('[') {
                 return self.finish(TokenVariant::LBracket);
             }
-            if self.acceptChar(']') {
+            if self.accept_char(']') {
                 return self.finish(TokenVariant::RBracket);
             }
-            if self.acceptChar('{') {
+            if self.accept_char('{') {
                 return self.finish(TokenVariant::LBrace);
             }
-            if self.acceptChar('}') {
+            if self.accept_char('}') {
                 return self.finish(TokenVariant::RBrace);
             }
-            if self.acceptChar('.') {
-                return self.finish(TokenVariant::DOT);
+            if self.accept_char('.') {
+                return self.finish(TokenVariant::Dot);
             }
 
             let mut str = String::new();
@@ -322,54 +330,54 @@ impl Lexer {
             // identifiers/keywords
             if self.identifier(&mut str) {
                 if str == "true" || str == "false" {
-                    return self.finishStr(TokenVariant::LitBool, &mut str);
+                    return self.finish_str(TokenVariant::LitBool, str);
                 }
-                return self.finishStr(TokenVariant::Identifier, &mut str);
+                return self.finish_str(TokenVariant::Identifier, str);
             }
 
             // char literal
-            if self.acceptChar('\'') {
-                while !self.acceptChar('\'') {
-                    self.acceptStrChar(&mut str, '\\');
+            if self.accept_char('\'') {
+                while !self.accept_char('\'') {
+                    self.accept_str_char(&mut str, '\\');
                     str.push(self.next().unwrap());
 
-                    if self.isEof() {
+                    if self.is_eof() {
                         return self.finish(TokenVariant::Error);
-                    };
+                    }
                 }
-                return self.finishStr(TokenVariant::LitChar, &mut str);
+                return self.finish_str(TokenVariant::LitChar, str);
             }
 
             // string literal
-            if self.acceptChar('"') {
-                while !self.acceptChar('"') {
-                    self.acceptStrChar(&mut str, '\\');
+            if self.accept_char('"') {
+                while !self.accept_char('"') {
+                    self.accept_str_char(&mut str, '\\');
                     str.push(self.next().unwrap());
 
-                    if self.isEof() {
+                    if self.is_eof() {
                         return self.finish(TokenVariant::Error);
                     }
                 }
-                return self.finishStr(TokenVariant::LitString, &mut str);
+                return self.finish_str(TokenVariant::LitString, str);
             }
 
-            if self.acceptStrPred(&mut str, dec) {
-                while self.acceptStrPred(&mut str, dec) {
-                    if self.isEof() {
+            if self.accept_str_pred(&mut str, dec) {
+                while self.accept_str_pred(&mut str, dec) {
+                    if self.is_eof() {
                         return self.finish(TokenVariant::Error);
                     }
                 }
 
-                return if self.acceptStrChar(&mut str, '.') {
-                    while self.acceptStrPred(&mut str, dec) {
-                        if self.isEof() {
+                return if self.accept_str_char(&mut str, '.') {
+                    while self.accept_str_pred(&mut str, dec) {
+                        if self.is_eof() {
                             return self.finish(TokenVariant::Error);
                         }
                     }
 
-                    self.finishStr(TokenVariant::LitReal, &mut str)
+                    self.finish_str(TokenVariant::LitReal, str)
                 } else {
-                    self.finishStr(TokenVariant::LitInteger, &mut str)
+                    self.finish_str(TokenVariant::LitInteger, str)
                 }
             }
 

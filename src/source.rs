@@ -11,13 +11,12 @@ pub struct Source{
 
     pub last: Pos,
     pub current: Pos,
-    pub peek: Pos,
 
     last_char: char,
 }
 
 impl Source{
-    pub fn peek(&mut self) -> Option<char> {
+    pub fn peek(&self) -> Option<char> {
         if self.eof{
             None
         }else{
@@ -27,34 +26,33 @@ impl Source{
 
     pub fn next(&mut self) -> Option<char> {
         let prev = self.peek();
-        self.current = self.peek;
 
         if let Some(c) = prev{
-            self.updatePosition(c);
+            self.update_position(c);
             if let Ok(size) = self.reader.read(&mut self.buffer[..]){
                 if size == 0 {
                     self.eof = true;
                 }
+            }else{
+                self.eof = true;
             }
         }
-
 
         prev
     }
 
-    pub fn acceptStr( &mut self, str: &mut String, pred : impl Fn(char) -> bool) -> bool{
-        if let Some(cha) = self.peek() {
+    pub fn accept_str(&mut self, str: &mut String, pred : impl Fn(char) -> bool) -> bool{
+        self.accept(|cha: char| {
             if pred(cha) {
                 str.push(cha);
-                self.next();
-                return true;
+                true
+            }else{
+                false
             }
-        }
-
-        return false;
+        })
     }
 
-    pub fn accept( &mut self,  pred : impl Fn(char) -> bool ) -> bool{
+    pub fn accept( &mut self,  mut pred : impl FnMut(char) -> bool ) -> bool{
         if let Some(cha) = self.peek() {
             if pred(cha) {
                 self.next();
@@ -65,28 +63,28 @@ impl Source{
         return false;
     }
 
-    fn updatePosition(&mut self, c: char) {
+    fn update_position(&mut self, c: char) {
         if c == '\r' || c == '\n' {
             if self.last_char as i32 == (('\n' as i32 ^ '\r' as i32) ^ c as i32) {
                 self.last_char = '\0';
             } else {
-                self.peek.col = 1;
-                self.peek.line += 1;
+                self.current.col = 1;
+                self.current.line += 1;
                 self.last_char = c;
             }
         } else {
-            self.peek.col += 1;
+            self.current.col += 1;
             self.last_char = c;
         }
     }
 
-    pub fn resetLoc(&mut self){
-        self.last = self.peek;
+    pub fn reset_loc(&mut self){
+        self.last = self.current;
     }
 
     pub fn loc(&mut self) -> Loc {
         Loc {
-            file: String::from(""),
+            file: String::new(),
             begin: self.last,
             end: self.current,
         }
@@ -97,14 +95,12 @@ impl Source{
             reader : BufReader::new(File::open(file ).expect("open failed")),
             buffer : [0; 1],
             eof : false,
-            last: Pos { line: 0, col: 0 },
-            current: Pos { line: 0, col: 0 },
-            peek: Pos { line: 0, col: 0 },
+            last: Pos{ line : 1, col : 0 },
+            current: Pos{ line : 1, col : 0 },
             last_char: '\0',
         };
 
         res.next();
-
         res
     }
 }

@@ -23,13 +23,13 @@ trait Expr{
 
 impl Parser {
     fn shift(&mut self) {
-        let mut new_token = self.lexer.nextToken();
+        let mut new_token = self.lexer.next_token();
 
         self.lookahead_idx = (self.lookahead_idx + 1) % LOOKAHEAD_SIZE;
 
         self.new_lines <<= 1;
         if new_token.variant == TokenVariant::NL {
-            new_token = self.lexer.nextToken();
+            new_token = self.lexer.next_token();
             self.new_lines |= 1;
         }
 
@@ -38,7 +38,7 @@ impl Parser {
 
 
     fn new(mut lexer: Lexer) -> Parser {
-        let lookahead = [lexer.nextToken(), lexer.nextToken(), lexer.nextToken()];
+        let lookahead = [lexer.next_token(), lexer.next_token(), lexer.next_token()];
 
         Parser {
             lexer,
