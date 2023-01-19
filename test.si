@@ -1,6 +1,11 @@
-fn main() : Int{
+
+struct Test{
+    a : i32
+}
+
+/*fn main() : Int{
     let test = Test()
     //test.a = 9
     test.b = map1
     test.b('s')
-}
+}*/

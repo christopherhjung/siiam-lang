@@ -1,11 +1,14 @@
+use std::env::var;
 use std::io;
 use std::fmt;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
+
 use crate::source::Source;
 
 pub struct Lexer {
     token: Token,
     source: Source,
-    last_nl : bool,
     enter: TokenEnter
 }
 
@@ -45,8 +48,7 @@ pub struct Token {
     pub loc: Loc,
     pub enter: TokenEnter
 }
-
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(PartialEq, Copy, Clone, Debug, EnumIter)]
 pub enum TokenVariant {
     OrOr,
     AndAnd,
@@ -70,6 +72,7 @@ pub enum TokenVariant {
     DivAsgn,
     Asgn,
 
+    LAngle, RAngle,
     LParen, RParen,
     LBracket, RBracket,
     LBrace, RBrace,
@@ -77,7 +80,6 @@ pub enum TokenVariant {
     Dot,
     While, For, If, Else,
     Return,
-    ID,
     Let, Fn, Struct,
 
     LitString, LitChar, LitInteger, LitReal, LitBool,
@@ -88,6 +90,31 @@ pub enum TokenVariant {
     Eof,
     Num,
     Identifier
+}
+
+impl TokenVariant{
+    fn keyword(&self) -> &str{
+        match self {
+            TokenVariant::While =>  "while",
+            TokenVariant::For =>  "for",
+            TokenVariant::If =>  "if",
+            TokenVariant::Else =>  "else",
+            TokenVariant::Let =>  "let",
+            TokenVariant::Fn =>  "fn",
+            TokenVariant::Return =>  "return",
+            TokenVariant::TypeString =>  "String",
+            TokenVariant::TypeChar =>  "char",
+            TokenVariant::TypeBool =>  "bool",
+            TokenVariant::TypeByte =>  "i8",
+            TokenVariant::TypeInt =>  "i32",
+            TokenVariant::TypeLong =>  "i64",
+            TokenVariant::TypeFloat =>  "f32",
+            TokenVariant::TypeDouble =>  "f64",
+            TokenVariant::TypeUnit =>  "Unit",
+            TokenVariant::Struct =>  "struct",
+            _ =>  "",
+        }
+    }
 }
 
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -127,7 +154,6 @@ fn eE(c : char) -> bool { return c == 'e' || c == 'E'; }
 fn sgn(c : char) -> bool{ return c == '+' || c == '-'; }
 
 impl Lexer {
-
     fn next(&mut self) -> Option<char> {
         self.source.next()
     }
@@ -146,12 +172,20 @@ impl Lexer {
 
     fn finish(&mut self, variant: TokenVariant) {
         self.token.variant = variant;
-        self.last_nl = variant == TokenVariant::NL;
         self.token.symbol = None;
     }
 
     fn finish_str(&mut self, variant: TokenVariant, str: String) {
         self.token.variant = variant;
+        if variant == TokenVariant::Identifier {
+            for elem in TokenVariant::iter(){
+                if elem.keyword() == str{
+                    self.token.variant = elem;
+                    self.token.symbol = None;
+                    return;
+                }
+            }
+        }
         self.token.symbol = Some(Symbol::new(str));
     }
 
@@ -198,7 +232,7 @@ impl Lexer {
                         break;
                     }
                 }
-                if self.source.last.line != self.source.current.line && !self.last_nl {
+                if self.source.last.line != self.source.current.line {
                     self.enter = TokenEnter::NL;
                     //return self.finish(TokenVariant::NL);
                 }else if self.enter == TokenEnter::Token{
@@ -423,7 +457,6 @@ impl Lexer {
                 },
                 enter: TokenEnter::NL
             },
-            last_nl : false,
             enter: TokenEnter::NL,
             source,
         }

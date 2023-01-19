@@ -1,4 +1,5 @@
 use crate::lexer::{Lexer, TokenVariant};
+use crate::parser::Parser;
 use crate::source::Source;
 
 mod lexer;
@@ -8,14 +9,19 @@ mod parser;
 pub fn main() {
     let mut source = Source::new(String::from("test.si"));
     let mut lexer = Lexer::new(source);
+    let mut parser = Parser::new(lexer);
 
-    loop{
-        let token = lexer.next_token();
-        println!("{:?}", token);
-        if token.variant == TokenVariant::Eof || token.variant == TokenVariant::Error{
-            break
-        }
-    }
+    let module = parser.parse_module();
+    println!("{:?}", "s");
+
+    /*
+        loop{
+            let token = lexer.next_token();
+            println!("{:?}", token);
+            if token.variant == TokenVariant::Eof || token.variant == TokenVariant::Error{
+                break
+            }
+        }*/
 
     //let mut f = BufReader::new(File::open("src/main.rs").expect("open failed"));
 
