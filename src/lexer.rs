@@ -49,7 +49,8 @@ pub enum TokenVariant {
     OrOr,
     AndAnd,
     Inc,
-    Dec, NOT,
+    Dec,
+    Not,
     SHL, SHR,
     Eq,
     Ne,
@@ -58,8 +59,9 @@ pub enum TokenVariant {
     Gt,
     Ge,
     OR, XOR, AND,
-    ADD,
-    Sub, MUL, DIV, REM,
+    Add,
+    Sub, MUL,
+    Div, REM,
     AddAsgn,
     SubAsgn,
     MulAsgn,
@@ -154,12 +156,16 @@ impl Lexer {
         self.source.accept(pred)
     }
 
+    fn accept_str(&mut self, str: &mut String) -> bool{
+        self.source.accept_str(str)
+    }
+
     fn accept_str_char(&mut self, str: &mut String, expect : char) -> bool{
-        self.source.accept_str(str, |actual| actual == expect)
+        self.source.accept_str_pred(str, |actual| actual == expect)
     }
 
     fn accept_str_pred(&mut self, str: &mut String, pred: fn(char) -> bool) -> bool{
-        self.source.accept_str(str, pred)
+        self.source.accept_str_pred(str, pred)
     }
 
     pub fn next_token(&mut self) -> Token {
@@ -197,7 +203,7 @@ impl Lexer {
                 if self.accept_char('=') {
                     return self.finish(TokenVariant::AddAsgn);
                 }
-                return self.finish(TokenVariant::ADD);
+                return self.finish(TokenVariant::Add);
             }
 
             // -, --, -=, ->
@@ -248,7 +254,7 @@ impl Lexer {
                 if self.accept_char('=') {
                     return self.finish(TokenVariant::Ne);
                 }
-                return self.finish(TokenVariant::Error);
+                return self.finish(TokenVariant::Not);
             }
 
             if self.accept_char('/') {
@@ -262,8 +268,10 @@ impl Lexer {
                             return self.finish(TokenVariant::Error);
                         }
 
-                        if self.accept_char('/') & &self.accept_char('*') {
-                            depth += 1;
+                        if self.accept_char('/') {
+                            if self.accept_char('*') {
+                                depth += 1;
+                            }
                         } else if self.accept_char('*') {
                             if self.accept_char('/') {
                                 depth -= 1;
@@ -271,9 +279,11 @@ impl Lexer {
                                     break;
                                 }
                             }
-                        } else {
-                            self.next();
+
+                            continue;
                         }
+
+                        self.next();
                     }
                     continue;
                 }
@@ -291,7 +301,7 @@ impl Lexer {
                     }
                     continue;
                 }
-                return self.finish(TokenVariant::DIV);
+                return self.finish(TokenVariant::Div);
             }
 
             if self.accept_char(',') {
@@ -337,14 +347,13 @@ impl Lexer {
 
             // char literal
             if self.accept_char('\'') {
-                while !self.accept_char('\'') {
-                    self.accept_str_char(&mut str, '\\');
-                    str.push(self.next().unwrap());
+                self.accept_str_char(&mut str, '\\');
+                self.accept_str(&mut str);
 
-                    if self.is_eof() {
-                        return self.finish(TokenVariant::Error);
-                    }
+                if self.is_eof() || !self.accept_char('\'') {
+                    return self.finish(TokenVariant::Error);
                 }
+
                 return self.finish_str(TokenVariant::LitChar, str);
             }
 
@@ -352,7 +361,7 @@ impl Lexer {
             if self.accept_char('"') {
                 while !self.accept_char('"') {
                     self.accept_str_char(&mut str, '\\');
-                    str.push(self.next().unwrap());
+                    self.accept_str(&mut str);
 
                     if self.is_eof() {
                         return self.finish(TokenVariant::Error);

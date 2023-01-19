@@ -41,10 +41,10 @@ impl Source{
         prev
     }
 
-    pub fn accept_str(&mut self, str: &mut String, pred : impl Fn(char) -> bool) -> bool{
-        self.accept(|cha: char| {
-            if pred(cha) {
-                str.push(cha);
+    pub fn accept_str_pred(&mut self, str: &mut String, pred : impl Fn(char) -> bool) -> bool{
+        self.accept(|ch: char| {
+            if pred(ch) {
+                str.push(ch);
                 true
             }else{
                 false
@@ -52,9 +52,18 @@ impl Source{
         })
     }
 
+    pub fn accept_str( &mut self, str: &mut String ) -> bool{
+        if let Some(ch) = self.peek() {
+            str.push(ch);
+            return true;
+        }
+
+        return false;
+    }
+
     pub fn accept( &mut self,  mut pred : impl FnMut(char) -> bool ) -> bool{
-        if let Some(cha) = self.peek() {
-            if pred(cha) {
+        if let Some(ch) = self.peek() {
+            if pred(ch) {
                 self.next();
                 return true;
             }
