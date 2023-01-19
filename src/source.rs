@@ -55,6 +55,7 @@ impl Source{
     pub fn accept_str( &mut self, str: &mut String ) -> bool{
         if let Some(ch) = self.peek() {
             str.push(ch);
+            self.next();
             return true;
         }
 

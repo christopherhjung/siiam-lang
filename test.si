@@ -2,5 +2,5 @@ fn main() : Int{
     let test = Test()
     //test.a = 9
     test.b = map1
-    test.b(9)
+    test.b('s')
 }

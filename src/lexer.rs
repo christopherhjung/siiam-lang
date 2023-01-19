@@ -6,6 +6,7 @@ pub struct Lexer {
     token: Token,
     source: Source,
     last_nl : bool,
+    enter: TokenEnter
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -42,6 +43,7 @@ pub struct Token {
     pub variant: TokenVariant,
     pub symbol: Option<Symbol>,
     pub loc: Loc,
+    pub enter: TokenEnter
 }
 
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -86,6 +88,11 @@ pub enum TokenVariant {
     Eof,
     Num,
     Identifier
+}
+
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub enum TokenEnter {
+    Token, Space, NL
 }
 
 #[derive(Debug)]
@@ -171,6 +178,8 @@ impl Lexer {
     pub fn next_token(&mut self) -> Token {
         self.next_token_impl();
         self.token.loc = self.source.loc();
+        self.token.enter = self.enter;
+        self.enter = TokenEnter::Token;
         self.token.clone()
     }
 
@@ -190,8 +199,12 @@ impl Lexer {
                     }
                 }
                 if self.source.last.line != self.source.current.line && !self.last_nl {
-                    return self.finish(TokenVariant::NL);
+                    self.enter = TokenEnter::NL;
+                    //return self.finish(TokenVariant::NL);
+                }else if self.enter == TokenEnter::Token{
+                    self.enter = TokenEnter::Space;
                 }
+
                 continue;
             }
 
@@ -347,6 +360,10 @@ impl Lexer {
 
             // char literal
             if self.accept_char('\'') {
+                if self.accept_char('\'') {
+                    return self.finish(TokenVariant::Error);
+                }
+
                 self.accept_str_char(&mut str, '\\');
                 self.accept_str(&mut str);
 
@@ -403,9 +420,11 @@ impl Lexer {
                     file: String::new(),
                     begin: Pos::zero(),
                     end: Pos::zero(),
-                }
+                },
+                enter: TokenEnter::NL
             },
             last_nl : false,
+            enter: TokenEnter::NL,
             source,
         }
     }
