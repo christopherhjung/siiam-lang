@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use crate::{Lexer, TokenVariant};
 use crate::lexer::{Symbol, Token, TokenEnter};
+use crate::ast::*;
 
 const LOOKAHEAD_SIZE: usize = 3;
 
@@ -11,309 +12,6 @@ pub struct Parser {
     lookahead: [Token; LOOKAHEAD_SIZE],
     lookahead_idx: usize,
     new_lines: usize,
-}
-
-pub struct Module {
-    items: Vec<Box<dyn Item>>,
-}
-
-pub trait Item {}
-
-pub struct StructDecl {
-    identifier: Box<Ident>,
-    fields: Vec<Box<FieldDecl>>,
-}
-
-impl Item for StructDecl {}
-
-struct FieldDecl {
-    identifier: Box<Ident>,
-    shadows: Option<Box<Decl>>,
-    depth: u32,
-    ast_type: Box<dyn ASTType>,
-    index: usize,
-}
-
-pub struct FnDecl {
-    identifier: Box<Ident>,
-    params: Vec<Box<Decl>>,
-    return_type: Option<Box<dyn ASTType>>,
-    body: Box<Block>,
-}
-
-impl Item for FnDecl{}
-
-struct Ident {
-    sym: Symbol,
-}
-
-trait ASTNode {
-    fn dump() -> String {
-        String::from("test")
-    }
-}
-
-impl ASTNode for Ident {}
-
-trait ASTType {}
-
-struct PrimASTType {
-    variant: TokenVariant,
-}
-
-impl ASTType for PrimASTType {}
-
-struct FnASTType {
-    param_types: Vec<Box<dyn ASTType>>,
-    return_type: Box<dyn ASTType>,
-}
-
-impl ASTType for FnASTType {}
-
-pub struct Decl {
-    identifier: Box<Ident>,
-    shadows: Option<Box<Decl>>,
-    depth: u32,
-    ast_type: Option<Box<dyn ASTType>>,
-}
-
-trait Stmt {}
-
-trait Expr {}
-
-pub struct Block {
-    stmts: Vec<Box<dyn Stmt>>,
-}
-
-impl Expr for Block {}
-
-struct ExprStmt {
-    expr: Box<dyn Expr>,
-}
-
-impl Stmt for ExprStmt {}
-
-struct PrefixExpr {
-    expr: Box<dyn Expr>,
-    op: Operator,
-}
-
-impl Expr for PrefixExpr {}
-
-struct PostfixExpr {
-    expr: Box<dyn Expr>,
-    op: Operator,
-}
-
-impl Expr for PostfixExpr {}
-
-struct InfixExpr {
-    lhs: Box<dyn Expr>,
-    rhs: Box<dyn Expr>,
-    op: Operator,
-}
-
-impl Expr for InfixExpr {}
-
-struct IdentUse {
-    ident: Box<Ident>,
-    decl: Option<Box<Decl>>,
-}
-
-impl IdentUse {
-    fn new(ident: Box<Ident>) -> IdentUse {
-        IdentUse { ident, decl: None }
-    }
-}
-
-impl ASTNode for IdentUse {}
-
-struct IdentExpr {
-    identUse: Box<IdentUse>,
-}
-
-impl Expr for IdentExpr {}
-
-enum Literal {
-    String(String),
-    Char(char),
-    Int(i64),
-    Real(f64),
-    Bool(bool),
-}
-
-impl Expr for Literal {}
-
-struct LetStmt {
-    local_decl: Box<Decl>,
-    init : Option<Box<dyn Expr>>
-}
-
-impl Stmt for LetStmt{}
-
-struct FnCallExpr {
-    callee : Box<dyn Expr>,
-    args : Vec<Box<dyn Expr>>
-}
-
-impl Expr for FnCallExpr{}
-
-struct FieldExpr{
-    target_ : Box<dyn Expr>,
-    identifier_ : Box<IdentUse>,
-    index_ : usize,
-}
-
-impl Expr for FieldExpr{}
-
-struct IfExpr {
-    condition : Box<dyn Expr>,
-    if_branch : Box<dyn Expr>,
-    else_branch : Option<Box<dyn Expr>>,
-}
-
-impl Expr for IfExpr{}
-
-struct WhileExpr {
-    condition : Box<dyn Expr>,
-    body : Box<dyn Expr>,
-    else_branch : Option<Box<dyn Expr>>,
-}
-
-impl Expr for WhileExpr{}
-
-#[derive(PartialEq, PartialOrd, Debug)]
-pub enum Prec {
-    Bottom,
-    Assign,
-    OrOr,
-    AndAnd,
-    Rel,
-    Or,
-    Xor,
-    And,
-    Shift,
-    Add,
-    Mul,
-    As,
-    Unary,
-}
-
-impl Prec {
-    fn next(&self) -> Prec {
-        match self {
-            Prec::Bottom => Prec::Assign,
-            Prec::Assign => Prec::OrOr,
-            Prec::OrOr => Prec::AndAnd,
-            Prec::AndAnd => Prec::Or,
-            Prec::Or => Prec::Xor,
-            Prec::Xor => Prec::And,
-            Prec::And => Prec::Shift,
-            Prec::Shift => Prec::Add,
-            Prec::Add => Prec::Mul,
-            Prec::Mul => Prec::As,
-            Prec::As => Prec::Unary,
-            _ => Prec::Unary,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum Operator {
-    Assign,
-    AddAssign,
-    SubAssign,
-    MulAssign,
-    DivAssign,
-
-    OrOr,
-    AndAnd,
-    Eq,
-    Ne,
-    Or,
-    Xor,
-    And,
-    Shl,
-    Shr,
-    Add,
-    Sub,
-
-    Inc,
-    Dec,
-    Not,
-    Lt,
-    Le,
-    Gt,
-    Ge,
-    Mul,
-    Div,
-    Rem,
-    Arrow,
-    Dot,
-    LeftParen,
-    RightParen,
-    LeftBracket,
-    RightBracket,
-    LeftBrace,
-    RightBrace,
-}
-
-impl Operator {
-    fn is_postfix(&self) -> bool {
-        return match self {
-            Operator::Inc |
-            Operator::Dec |
-            Operator::LeftBracket |
-            Operator::LeftParen |
-            Operator::Dot => true,
-            _ => false
-        };
-    }
-
-    fn is_prefix(&self) -> bool {
-        return match self {
-            Operator::Add |
-            Operator::Sub |
-            Operator::Inc |
-            Operator::Dec |
-            Operator::Not => true,
-            _ => false
-        };
-    }
-
-    fn is_infix(&self) -> bool {
-        return match self {
-            Operator::OrOr |
-            Operator::AndAnd |
-            Operator::Assign |
-            Operator::Eq |
-            Operator::Ne |
-            Operator::Lt |
-            Operator::Le |
-            Operator::Gt |
-            Operator::Ge |
-            Operator::Add |
-            Operator::Sub |
-            Operator::Mul |
-            Operator::Div => true,
-            _ => false
-        };
-    }
-
-    fn prec(&self) -> Prec {
-        match self {
-            Operator::OrOr => Prec::OrOr,
-            Operator::AndAnd => Prec::AndAnd,
-            Operator::Eq | Operator::Ne => Prec::Rel,
-            Operator::Or => Prec::Or,
-            Operator::Xor => Prec::Xor,
-            Operator::And => Prec::Add,
-            Operator::Shl | Operator::Shr => Prec::Shift,
-            Operator::Add | Operator::Sub => Prec::Add,
-            Operator::Mul | Operator::Div | Operator::Rem => Prec::Mul,
-            _ => Prec::Bottom
-        }
-    }
 }
 
 impl Parser {
@@ -359,9 +57,7 @@ impl Parser {
     }
 
     fn follow(&mut self, variant: TokenVariant) -> bool {
-        let enter = self.lookahead().enter;
-
-        if enter == TokenEnter::Token {
+        if self.enter(TokenEnter::Token) {
             return self.accept(variant);
         }
 
@@ -369,9 +65,7 @@ impl Parser {
     }
 
     fn expect(&mut self, variant: TokenVariant) {
-        println!("actual:{:?} expect:{:?}", self.variant(), variant);
         assert!(self.accept(variant), "Variants do not match!");
-        println!("actual:{:?} expect:{:?} !!", self.variant(), variant);
     }
 
     fn expect_enter(&mut self, enter: TokenEnter) {
@@ -388,9 +82,9 @@ impl Parser {
 
 
     fn parse_item(&mut self) -> Box<dyn Item> {
-        match self.variant() {
-            TokenVariant::Fn => return self.parse_fn(),
-            TokenVariant::Struct => return self.parse_struct(),
+        return match self.variant() {
+            TokenVariant::Fn => self.parse_fn(),
+            TokenVariant::Struct => self.parse_struct(),
             _ => unreachable!()
         }
     }
@@ -464,11 +158,18 @@ impl Parser {
             TokenVariant::TypeDouble |
             TokenVariant::TypeUnit => {
                 let token = self.lex();
-                return Box::new(PrimASTType { variant: token.variant });
+                return Box::new(PrimASTType {
+                    variant: token.variant
+                });
             }
-            /*TokenVariant::ID => {
-                return Box::new(SuperASTType(IdentUse(parse_identifier())));
-            }*/
+            TokenVariant::Identifier => {
+                return Box::new(SuperASTType{
+                    ident_use: Box::new(IdentUse {
+                        ident: self.parse_identifier(),
+                        decl: None
+                    })
+                });
+            }
             TokenVariant::Fn => {
                 self.lex();
                 self.accept(TokenVariant::LParen);
@@ -592,12 +293,12 @@ impl Parser {
 
     fn parse_primary_expr(&mut self) -> Box<dyn Expr> {
         match self.variant() {
-            TokenVariant::LitInteger |
+            TokenVariant::LitInt |
             TokenVariant::LitReal    |
             TokenVariant::LitString  |
             TokenVariant::LitChar    |
             TokenVariant::LitBool => self.parse_literal(),
-            TokenVariant::Identifier => Box::new(IdentExpr { identUse: Box::new(IdentUse::new(self.parse_identifier())) }),
+            TokenVariant::Identifier => Box::new(IdentExpr { ident_use: Box::new(IdentUse::new(self.parse_identifier())) }),
             TokenVariant::LParen => {
                 self.lex();
                 let expr = self.parse_expr();
@@ -621,7 +322,7 @@ impl Parser {
             Operator::LeftParen => Box::new(FnCallExpr{ callee: lhs, args: self.parse_expr_list(TokenVariant::Comma, TokenVariant::RParen) }),
             Operator::Dot => Box::new(FieldExpr{
                 target_: lhs,
-                identifier_: Box::new(IdentUse { ident: self.parse_identifier(), decl: None } ),
+                identifier_: Box::new(IdentUse::new(self.parse_identifier()) ),
                 index_: 0
             }),
             _ => unreachable!()
@@ -630,10 +331,9 @@ impl Parser {
 
 
     fn parse_expr_prec(&mut self, prec: Prec) -> Box<dyn Expr> {
-        let mut lhs = if let Some(op) = self.parse_operator() {
-            self.parse_prefix_expr(op)
-        } else {
-            self.parse_primary_expr()
+        let mut lhs = match self.parse_operator() {
+            Some(op) => self.parse_prefix_expr(op),
+            None => self.parse_primary_expr()
         };
 
         loop {
@@ -672,7 +372,7 @@ impl Parser {
         Box::new(match token.variant
         {
             TokenVariant::LitReal => Literal::Real(str.parse::<f64>().unwrap()),
-            TokenVariant::LitInteger => Literal::Int(str.parse::<i64>().unwrap()),
+            TokenVariant::LitInt => Literal::Int(str.parse::<i64>().unwrap()),
             TokenVariant::LitString => Literal::String(str),
             TokenVariant::LitChar => Literal::Char(str.chars().next().unwrap()),
             TokenVariant::LitBool => Literal::Bool(str == "true"),

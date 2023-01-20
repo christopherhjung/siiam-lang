@@ -70,7 +70,8 @@ pub enum TokenVariant {
     Return,
     Let, Fn, Struct,
 
-    LitString, LitChar, LitInteger, LitReal, LitBool,
+    LitString, LitChar,
+    LitInt, LitReal, LitBool,
     TypeString, TypeUnit, TypeByte, TypeChar, TypeInt, TypeLong, TypeFloat, TypeDouble, TypeBool,
 
     NL,
@@ -246,11 +247,8 @@ impl Lexer {
             }
 
             if self.accept_pred(space) {
-                loop {
-                    if !self.accept_pred(space) {
-                        break;
-                    }
-                }
+                while self.accept_pred(space) {}
+
                 if self.source.last.line != self.source.current.line {
                     self.enter = TokenEnter::NL;
                 }else if self.enter == TokenEnter::Token{
@@ -291,7 +289,7 @@ impl Lexer {
                     loop {
                         if self.is_eof() {
                             return self.finish(TokenVariant::Error);
-                        };
+                        }
 
                         if self.accept_char('\n') {
                             break;
@@ -363,7 +361,7 @@ impl Lexer {
 
                     self.finish_str(TokenVariant::LitReal, str)
                 } else {
-                    self.finish_str(TokenVariant::LitInteger, str)
+                    self.finish_str(TokenVariant::LitInt, str)
                 }
             }
 

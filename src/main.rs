@@ -1,3 +1,6 @@
+use std::borrow::BorrowMut;
+use std::ptr;
+use std::rc::Rc;
 use crate::lexer::{Lexer, TokenVariant};
 use crate::parser::Parser;
 use crate::source::Source;
@@ -5,6 +8,16 @@ use crate::source::Source;
 mod lexer;
 mod source;
 mod parser;
+mod referencing;
+mod ast;
+
+struct B{
+    test : i32
+}
+
+struct A{
+    child : Option<Rc<A>>
+}
 
 pub fn main() {
     let mut source = Source::new(String::from("test.si"));
@@ -13,6 +26,13 @@ pub fn main() {
     let mut parser = Parser::new(lexer);
     let module = parser.parse_module();
     println!("{:?}", "finish");
+
+
+    let strong = Rc::new("hello".to_owned());
+    let weak = Rc::downgrade(&strong);
+    assert!(ptr::eq(&*strong, weak.as_ptr()));
+    assert_eq!("hello", unsafe { &*weak.as_ptr() });
+
 
     /*
         loop{
