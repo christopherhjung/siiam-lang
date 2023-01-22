@@ -20,9 +20,13 @@ pub struct SymTable {
 
 impl SymTable {
     pub fn from( &mut self, str : String ) -> SymRef {
-        let rc = Rc::new(Sym{value: str.clone()});
-        self.map.insert(str, rc.clone());
-        rc
+        if let Some(rc) = self.map.get(&str){
+            rc.clone()
+        }else{
+            let rc = Rc::new(Sym{value: str.clone()});
+            self.map.insert(str, rc.clone());
+            rc
+        }
     }
 
     pub fn new() -> SymTable{

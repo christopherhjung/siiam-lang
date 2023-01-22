@@ -2,10 +2,10 @@ use std::borrow::BorrowMut;
 use std::cell::{Cell, RefCell};
 use std::ptr;
 use std::rc::Rc;
-use crate::ast::{ASTNode, Decl, Module};
+use crate::ast::{ Decl, Module};
 use crate::lexer::{Lexer, TokenVariant};
 use crate::parser::Parser;
-use crate::name_resolution::{NameResolution, NameResolutionImpl};
+use crate::name_resolution::{NameResolution};
 use crate::source::Source;
 use crate::sym::*;
 
@@ -15,6 +15,8 @@ mod parser;
 mod name_resolution;
 mod ast;
 mod sym;
+mod visitor;
+mod sema;
 
 struct B{
     test : i32
@@ -31,10 +33,13 @@ pub fn main() {
 
     let mut parser = Parser::new(lexer);
     let mut module = parser.parse_module();
-    println!("{:?}", "finish");
 
     let mut res = NameResolution::new();
-    module.resolve(&mut res);
+    res.resolve(&mut module);
+
+
+
+    println!("{:#?}", module);
 
     //let mut test = Rc::new(RefCell::new(Test{ value : 2 }));
     //let mut test2 = test.clone();

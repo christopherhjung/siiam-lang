@@ -3,13 +3,14 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 use crate::ast::*;
+use crate::visitor::Visitor;
 use crate::Module;
 use crate::sym::{Sym, SymRef};
 
 pub struct NameResolution {
     levels : Vec<usize>,
-    decls : Vec<Rc<RefCell<Decl>>>,
-    symbol2decl : HashMap<*const Sym, Rc<RefCell<Decl>>>
+    decls : Vec<*const Decl>,
+    symbol2decl : HashMap<*const Sym, *const Decl>
 }
 
 fn key(sym: &SymRef) -> *const Sym{
@@ -26,18 +27,20 @@ impl NameResolution {
 
         for i in last_level .. self.decls.len(){
             let last_decl_ref = self.decls.pop().unwrap();
-            let mut last_decl = RefCell::borrow_mut(&last_decl_ref);
+            let mut last_decl = unsafe { &*last_decl_ref };
 
             self.symbol2decl.insert(
-                key(&last_decl.share().ident.sym),
-                last_decl.share().shadows.as_ref().unwrap().clone()
+                key(&last_decl.ident.sym),
+                last_decl.shadows.as_ref().unwrap().clone()
             );
         }
 
         self.levels.pop();
     }
 
-    fn lookup(&mut self, sym : &SymRef) -> Option<Rc<RefCell<Decl>>>{
+    fn lookup(&mut self, sym : &SymRef) -> Option<*const Decl>{
+        println!("lookup {:#?} {:#?}", sym.value, key(&sym) as u64);
+
         if let Some(rc) = self.symbol2decl.get(&key(sym)){
             Some(rc.clone())
         }else{
@@ -45,9 +48,10 @@ impl NameResolution {
         }
     }
 
-    pub fn find_local(&mut self, sym : &SymRef) -> Option<Rc<RefCell<Decl>>>{
+    pub fn find_local(&mut self, sym : &SymRef) -> Option<*const Decl>{
         if let Some(other) = self.lookup(sym) {
-            if RefCell::borrow_mut(&other).share().depth == self.levels.len(){
+            let mut decl = unsafe { &*other };
+            if decl.depth == self.levels.len(){
                 return Some(other.clone())
             }
         }
@@ -55,20 +59,25 @@ impl NameResolution {
         return None
     }
 
-    pub fn insert(&mut self, decl : Rc<RefCell<Decl>>){
-        let mut cell = RefCell::borrow_mut(&decl);
-        let share = cell.share();
-        let sym = share.ident.sym.clone();
+    pub fn insert(&mut self, decl : &mut Decl){
+        let decl_ptr = decl as *const Decl;
+        let sym = &mut decl.ident.sym;
 
-        share.depth = self.levels.len();
-        share.shadows = self.lookup(&sym);
+        decl.depth = self.levels.len();
+        decl.shadows = self.lookup(&sym);
 
         if let Some( other ) = self.find_local(&sym){
             unreachable!();
         }
 
-        self.symbol2decl.insert(key(&sym), decl.clone());
-        self.decls.push(decl.clone());
+        println!("insert {:#?} {:#?}", sym.value, key(&sym) as u64);
+
+        self.symbol2decl.insert(key(&sym), decl_ptr);
+        self.decls.push(decl_ptr);
+    }
+
+    pub fn resolve(&mut self, module: &mut Module){
+        self.visit_module(module);
     }
 
     pub fn new() -> NameResolution {
@@ -80,61 +89,21 @@ impl NameResolution {
     }
 }
 
-pub trait NameResolutionImpl {
-    fn resolve(&mut self, res: &mut NameResolution){
-
-    }
-}
-
-impl NameResolutionImpl for Module{
-    fn resolve(&mut self, res: &mut NameResolution){
-        for item in &mut self.items{
-            item.resolve(res);
+impl Visitor for NameResolution{
+    fn enter_decl(&mut self, decl: &mut Decl) {
+        match &mut decl.kind {
+            DeclKind::LetDecl(kind) => self.insert(decl),
+            DeclKind::FnDecl(kind) => self.insert(decl),
+            _ => return
         }
     }
-}
 
-impl NameResolutionImpl for Ident{
-    fn resolve(&mut self, res: &mut NameResolution){
+    fn visit_ident_expr(&mut self, ident_expr: &mut IdentExpr) {
+
+        let ident_use = &mut ident_expr.ident_use;
+        let decl = self.lookup(&ident_use.ident.sym);
+        ident_use.decl = decl;
+        //println!("{:#?}", decl);
+        //println!("{:#?}", ident_expr);
     }
 }
-
-impl NameResolutionImpl for IdentUse{
-    fn resolve(&mut self, res: &mut NameResolution){
-        self.decl = res.lookup(&self.ident.sym);
-    }
-}
-
-impl NameResolutionImpl for FnDecl{
-    fn resolve(&mut self, res: &mut NameResolution){
-        //res.insert(self);
-        res.push_scope();
-    }
-}
-
-impl NameResolutionImpl for StructDecl{
-    fn resolve(&mut self, res: &mut NameResolution){
-    }
-}
-
-impl NameResolutionImpl for LetDecl{
-    fn resolve(&mut self, res: &mut NameResolution){
-    }
-}
-
-impl NameResolutionImpl for Decl{
-    fn resolve(&mut self, res: &mut NameResolution){
-        match self {
-            Decl::LetDecl(decl) => decl.resolve(res),
-            Decl::FnDecl(decl) => decl.resolve(res),
-            Decl::FieldDecl(decl) => decl.resolve(res)
-        }
-    }
-}
-
-
-/*
-impl <T: ASTNode> Reference for T{
-    fn reference(&mut self){
-    }
-}*/

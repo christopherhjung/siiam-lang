@@ -3,11 +3,7 @@
 
 fn main() : i32{
     let a = 9
-    if a == 9{
-        a = a++ - 8
-    }else{
-        a = 2
-    }
+
     a - 1
 }
 /*

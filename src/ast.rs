@@ -1,163 +1,145 @@
 use std::cell::RefCell;
+use std::cmp::max;
 use std::rc::{Rc, Weak};
 use crate::sym::{Sym, SymRef};
 use crate::{TokenVariant};
-use crate::name_resolution::NameResolutionImpl;
+use crate::ast::Operator::Dec;
 
+#[derive(Debug)]
 pub struct Module {
-    pub items: Vec<Box<dyn Item>>,
+    pub items: Vec<Box<Decl>>,
 }
 
-impl ASTNode for Module {}
 
-pub trait Item : ASTNode {}
-
+#[derive(Debug)]
 pub struct StructDecl {
-    pub identifier: Box<Ident>,
-    pub fields: Vec<Box<FieldDecl>>,
+    pub fields: Vec<Box<Decl>>,
 }
 
-impl Item for StructDecl {}
-impl ASTNode for StructDecl{}
-
-pub struct DeclShare{
-    pub ident: Box<Ident>,
-    pub shadows: Option<Rc<RefCell<Decl>>>,
-    pub depth: usize,
-}
-
-impl DeclShare{
-    pub fn new( ident: Box<Ident> ) -> DeclShare{
-        DeclShare{
-            ident,
-            shadows: None,
-            depth: 0
-        }
-    }
-}
-
+#[derive(Debug)]
 pub struct FieldDecl {
-    pub share : DeclShare,
-    pub ast_type: Box<dyn ASTType>,
+    pub ast_type: Box<ASTType>,
     pub index: usize,
 }
 
+#[derive(Debug)]
 pub struct FnDecl {
-    pub share : DeclShare,
-    pub params: Vec<Box<LetDecl>>,
-    pub return_type: Option<Box<dyn ASTType>>,
+    pub params: Vec<Box<Decl>>,
+    pub return_type: Option<Box<ASTType>>,
     pub body: Box<Expr>,
 }
 
-impl ASTNode for FnDecl{}
-
+#[derive(Debug)]
 pub struct LetDecl {
-    pub share : DeclShare,
-    pub ast_type: Option<Box<dyn ASTType>>,
+    pub ast_type: Option<Box<ASTType>>,
 }
 
-impl ASTNode for LetDecl{}
-
-pub enum Decl{
-    LetDecl(LetDecl),
-    FnDecl(FnDecl),
-    FieldDecl(FieldDecl),
+#[derive(Debug)]
+pub struct Decl{
+    pub ident: Box<Ident>,
+    pub shadows: Option<*const Decl>,
+    pub depth: usize,
+    pub kind : DeclKind
 }
-
-impl ASTNode for Decl{}
 
 impl Decl{
-    pub fn share(&mut self) -> &mut DeclShare{
-        match self {
-            Decl::LetDecl(LetDecl { share, .. }) => share,
-            Decl::FnDecl(FnDecl { share,  .. }) => share,
-            Decl::FieldDecl(FieldDecl { share, .. }) => share,
-            _ => unreachable!()
-        }
+    pub fn new(ident : Box<Ident>, kind : DeclKind ) -> Decl{
+         Decl{
+             ident,
+             shadows: None,
+             depth: 0,
+             kind
+         }
     }
 }
 
-impl Item for FnDecl{}
+#[derive(Debug)]
+pub enum DeclKind{
+    LetDecl(LetDecl),
+    FnDecl(FnDecl),
+    FieldDecl(FieldDecl),
+    StructDecl(StructDecl)
+}
 
+#[derive(Debug)]
 pub struct Ident {
     pub sym: SymRef,
 }
 
-pub trait ASTNode : NameResolutionImpl {
+#[derive(Debug)]
+pub enum ASTType {
+    Prim(PrimASTType),
+    Super(SuperASTType),
+    Fn(FnASTType),
 }
 
-impl ASTNode for Ident {}
-
-pub trait ASTType {}
-
+#[derive(Debug)]
 pub struct PrimASTType {
     pub variant: TokenVariant,
 }
-
-impl ASTType for PrimASTType {}
-
+#[derive(Debug)]
 pub struct SuperASTType {
     pub ident_use: Box<IdentUse>,
 }
 
-impl ASTType for SuperASTType {}
-
+#[derive(Debug)]
 pub struct FnASTType {
-    pub param_types: Vec<Box<dyn ASTType>>,
-    pub return_type: Box<dyn ASTType>,
+    pub param_types: Vec<Box<ASTType>>,
+    pub return_type: Box<ASTType>,
 }
 
-impl ASTType for FnASTType {}
-
+#[derive(Debug)]
 pub struct ExprStmt {
     pub expr: Box<Expr>,
 }
 
+#[derive(Debug)]
 pub enum Stmt {
     Expr(ExprStmt),
     Let(LetStmt)
 }
+#[derive(Debug)]
 pub enum Expr {
     Literal(Literal),
     Block(Block),
     Ident(IdentExpr),
-    FnCallExpr(FnCallExpr),
-    FieldExpr(FieldExpr),
-    IfExpr(IfExpr),
-    WhileExpr(WhileExpr),
-    PrefixExpr(PrefixExpr),
-    InfixExpr(InfixExpr),
-    PostfixExpr(PostfixExpr)
+    FnCall(FnCallExpr),
+    Field(FieldExpr),
+    If(IfExpr),
+    While(WhileExpr),
+    Prefix(PrefixExpr),
+    Infix(InfixExpr),
+    Postfix(PostfixExpr)
 }
 
+#[derive(Debug)]
 pub struct Block {
     pub stmts: Vec<Box<Stmt>>,
 }
 
-/*
-pub struct ExprStmt {
-    pub expr: Box<Expr>,
-}*/
-
+#[derive(Debug)]
 pub struct PrefixExpr {
     pub expr: Box<Expr>,
     pub op: Operator,
 }
 
+#[derive(Debug)]
 pub struct PostfixExpr {
     pub expr: Box<Expr>,
     pub op: Operator,
 }
 
+#[derive(Debug)]
 pub struct InfixExpr {
     pub lhs: Box<Expr>,
     pub rhs: Box<Expr>,
     pub op: Operator,
 }
 
+#[derive(Debug)]
 pub struct IdentUse {
     pub ident: Box<Ident>,
-    pub decl: Option<Rc<RefCell<Decl>>>,
+    pub decl: Option<*const Decl>,
 }
 
 impl IdentUse {
@@ -166,12 +148,12 @@ impl IdentUse {
     }
 }
 
-impl ASTNode for IdentUse {}
-
+#[derive(Debug)]
 pub struct IdentExpr {
     pub ident_use: Box<IdentUse>,
 }
 
+#[derive(Debug)]
 pub enum Literal {
     String(String),
     Char(char),
@@ -180,28 +162,33 @@ pub enum Literal {
     Bool(bool),
 }
 
+#[derive(Debug)]
 pub struct LetStmt {
-    pub local_decl: Box<LetDecl>,
+    pub local_decl: Box<Decl>,
     pub init : Option<Box<Expr>>
 }
 
+#[derive(Debug)]
 pub struct FnCallExpr {
     pub callee : Box<Expr>,
     pub args : Vec<Box<Expr>>
 }
 
+#[derive(Debug)]
 pub struct FieldExpr{
     pub target_ : Box<Expr>,
     pub identifier_ : Box<IdentUse>,
     pub index_ : usize,
 }
 
+#[derive(Debug)]
 pub struct IfExpr {
     pub condition : Box<Expr>,
     pub if_branch : Box<Expr>,
     pub else_branch : Option<Box<Expr>>,
 }
 
+#[derive(Debug)]
 pub struct WhileExpr {
     condition : Box<Expr>,
     body : Box<Expr>,
@@ -248,8 +235,7 @@ pub enum Operator {
     RightBrace,
 }
 
-
-#[derive(PartialEq, PartialOrd, Debug)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
 pub enum Prec {
     Bottom,
     Assign,
