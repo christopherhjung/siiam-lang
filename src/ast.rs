@@ -1,12 +1,16 @@
-use std::rc::Weak;
-use crate::lexer::Symbol;
-use crate::TokenVariant;
+use std::cell::RefCell;
+use std::rc::{Rc, Weak};
+use crate::sym::{Sym, SymRef};
+use crate::{TokenVariant};
+use crate::name_resolution::NameResolutionImpl;
 
 pub struct Module {
     pub items: Vec<Box<dyn Item>>,
 }
 
-pub trait Item {}
+impl ASTNode for Module {}
+
+pub trait Item : ASTNode {}
 
 pub struct StructDecl {
     pub identifier: Box<Ident>,
@@ -14,32 +18,72 @@ pub struct StructDecl {
 }
 
 impl Item for StructDecl {}
+impl ASTNode for StructDecl{}
+
+pub struct DeclShare{
+    pub ident: Box<Ident>,
+    pub shadows: Option<Rc<RefCell<Decl>>>,
+    pub depth: usize,
+}
+
+impl DeclShare{
+    pub fn new( ident: Box<Ident> ) -> DeclShare{
+        DeclShare{
+            ident,
+            shadows: None,
+            depth: 0
+        }
+    }
+}
 
 pub struct FieldDecl {
-    pub identifier: Box<Ident>,
-    pub shadows: Option<Box<Decl>>,
-    pub depth: u32,
+    pub share : DeclShare,
     pub ast_type: Box<dyn ASTType>,
     pub index: usize,
 }
 
 pub struct FnDecl {
-    pub identifier: Box<Ident>,
-    pub params: Vec<Box<Decl>>,
+    pub share : DeclShare,
+    pub params: Vec<Box<LetDecl>>,
     pub return_type: Option<Box<dyn ASTType>>,
-    pub body: Box<Block>,
+    pub body: Box<Expr>,
+}
+
+impl ASTNode for FnDecl{}
+
+pub struct LetDecl {
+    pub share : DeclShare,
+    pub ast_type: Option<Box<dyn ASTType>>,
+}
+
+impl ASTNode for LetDecl{}
+
+pub enum Decl{
+    LetDecl(LetDecl),
+    FnDecl(FnDecl),
+    FieldDecl(FieldDecl),
+}
+
+impl ASTNode for Decl{}
+
+impl Decl{
+    pub fn share(&mut self) -> &mut DeclShare{
+        match self {
+            Decl::LetDecl(LetDecl { share, .. }) => share,
+            Decl::FnDecl(FnDecl { share,  .. }) => share,
+            Decl::FieldDecl(FieldDecl { share, .. }) => share,
+            _ => unreachable!()
+        }
+    }
 }
 
 impl Item for FnDecl{}
 
 pub struct Ident {
-    pub sym: Symbol,
+    pub sym: SymRef,
 }
 
-pub trait ASTNode {
-    fn dump() -> String {
-        String::from("test")
-    }
+pub trait ASTNode : NameResolutionImpl {
 }
 
 impl ASTNode for Ident {}
@@ -65,54 +109,55 @@ pub struct FnASTType {
 
 impl ASTType for FnASTType {}
 
-pub struct Decl {
-    pub identifier: Box<Ident>,
-    pub shadows: Option<Weak<Decl>>,
-    pub depth: u32,
-    pub ast_type: Option<Box<dyn ASTType>>,
+pub struct ExprStmt {
+    pub expr: Box<Expr>,
 }
 
-pub trait Stmt {}
-
-pub trait Expr {}
+pub enum Stmt {
+    Expr(ExprStmt),
+    Let(LetStmt)
+}
+pub enum Expr {
+    Literal(Literal),
+    Block(Block),
+    Ident(IdentExpr),
+    FnCallExpr(FnCallExpr),
+    FieldExpr(FieldExpr),
+    IfExpr(IfExpr),
+    WhileExpr(WhileExpr),
+    PrefixExpr(PrefixExpr),
+    InfixExpr(InfixExpr),
+    PostfixExpr(PostfixExpr)
+}
 
 pub struct Block {
-    pub stmts: Vec<Box<dyn Stmt>>,
+    pub stmts: Vec<Box<Stmt>>,
 }
 
-impl Expr for Block {}
-
+/*
 pub struct ExprStmt {
-    pub expr: Box<dyn Expr>,
-}
-
-impl Stmt for ExprStmt {}
+    pub expr: Box<Expr>,
+}*/
 
 pub struct PrefixExpr {
-    pub expr: Box<dyn Expr>,
+    pub expr: Box<Expr>,
     pub op: Operator,
 }
-
-impl Expr for PrefixExpr {}
 
 pub struct PostfixExpr {
-    pub expr: Box<dyn Expr>,
+    pub expr: Box<Expr>,
     pub op: Operator,
 }
-
-impl Expr for PostfixExpr {}
 
 pub struct InfixExpr {
-    pub lhs: Box<dyn Expr>,
-    pub rhs: Box<dyn Expr>,
+    pub lhs: Box<Expr>,
+    pub rhs: Box<Expr>,
     pub op: Operator,
 }
-
-impl Expr for InfixExpr {}
 
 pub struct IdentUse {
     pub ident: Box<Ident>,
-    pub decl: Option<Box<Decl>>,
+    pub decl: Option<Rc<RefCell<Decl>>>,
 }
 
 impl IdentUse {
@@ -127,8 +172,6 @@ pub struct IdentExpr {
     pub ident_use: Box<IdentUse>,
 }
 
-impl Expr for IdentExpr {}
-
 pub enum Literal {
     String(String),
     Char(char),
@@ -137,45 +180,33 @@ pub enum Literal {
     Bool(bool),
 }
 
-impl Expr for Literal {}
-
 pub struct LetStmt {
-    pub local_decl: Box<Decl>,
-    pub init : Option<Box<dyn Expr>>
+    pub local_decl: Box<LetDecl>,
+    pub init : Option<Box<Expr>>
 }
-
-impl Stmt for LetStmt{}
 
 pub struct FnCallExpr {
-    pub callee : Box<dyn Expr>,
-    pub args : Vec<Box<dyn Expr>>
+    pub callee : Box<Expr>,
+    pub args : Vec<Box<Expr>>
 }
 
-impl Expr for FnCallExpr{}
-
 pub struct FieldExpr{
-    pub target_ : Box<dyn Expr>,
+    pub target_ : Box<Expr>,
     pub identifier_ : Box<IdentUse>,
     pub index_ : usize,
 }
 
-impl Expr for FieldExpr{}
-
 pub struct IfExpr {
-    pub condition : Box<dyn Expr>,
-    pub if_branch : Box<dyn Expr>,
-    pub else_branch : Option<Box<dyn Expr>>,
+    pub condition : Box<Expr>,
+    pub if_branch : Box<Expr>,
+    pub else_branch : Option<Box<Expr>>,
 }
-
-impl Expr for IfExpr{}
 
 pub struct WhileExpr {
-    condition : Box<dyn Expr>,
-    body : Box<dyn Expr>,
-    else_branch : Option<Box<dyn Expr>>,
+    condition : Box<Expr>,
+    body : Box<Expr>,
+    else_branch : Option<Box<Expr>>,
 }
-
-impl Expr for WhileExpr{}
 
 #[derive(Debug)]
 pub enum Operator {

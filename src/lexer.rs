@@ -1,15 +1,22 @@
+use std::borrow::BorrowMut;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::env::var;
 use std::io;
 use std::fmt;
+use std::rc::{Rc, Weak};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 use crate::source::Source;
+use crate::sym::{Sym, SymRef};
+use crate::SymTable;
 
 pub struct Lexer {
     token: Token,
     source: Source,
-    enter: TokenEnter
+    enter: TokenEnter,
+    sym_table: Rc<SymTable>
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -44,7 +51,7 @@ impl Clone for Loc {
 #[derive(Clone, Debug)]
 pub struct Token {
     pub variant: TokenVariant,
-    pub symbol: Option<Symbol>,
+    pub symbol: Option<SymRef>,
     pub loc: Loc,
     pub enter: TokenEnter
 }
@@ -111,24 +118,12 @@ pub enum TokenEnter {
     Token, Space, NL
 }
 
-#[derive(Debug)]
-pub struct Symbol {
-    pub value: String,
-}
-
-impl Symbol{
-    fn new( str : String ) -> Symbol{
-        Symbol{
-            value: str.clone()
-        }
-    }
-}
-
-impl Clone for Symbol {
+/*
+impl Clone for Sym {
     fn clone(&self) -> Self {
-        Symbol::new(self.value.clone())
+        Sym::new(self.value.clone())
     }
-}
+}*/
 
 #[inline(always)]
 fn range(c: char, low: char, high: char) -> bool { return low <= c && c <= high; }
@@ -175,7 +170,9 @@ impl Lexer {
                 }
             }
         }
-        self.token.symbol = Some(Symbol::new(str));
+        let tes = Rc::get_mut(&mut self.sym_table);
+        let a = tes.unwrap();
+        self.token.symbol = Some(a.from(str));
     }
 
     fn accept_char(&mut self, expect : char) -> bool{
@@ -369,7 +366,7 @@ impl Lexer {
         }
     }
 
-    pub fn new(source: Source) -> Lexer {
+    pub fn new(source: Source, sym_table: Rc<SymTable>) -> Lexer {
         Lexer {
             token : Token{
                 variant: TokenVariant::Error,
@@ -382,6 +379,7 @@ impl Lexer {
                 enter: TokenEnter::NL
             },
             enter: TokenEnter::NL,
+            sym_table,
             source,
         }
     }

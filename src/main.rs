@@ -1,37 +1,48 @@
 use std::borrow::BorrowMut;
+use std::cell::{Cell, RefCell};
 use std::ptr;
 use std::rc::Rc;
+use crate::ast::{ASTNode, Decl, Module};
 use crate::lexer::{Lexer, TokenVariant};
 use crate::parser::Parser;
+use crate::name_resolution::{NameResolution, NameResolutionImpl};
 use crate::source::Source;
+use crate::sym::*;
 
 mod lexer;
 mod source;
 mod parser;
-mod referencing;
+mod name_resolution;
 mod ast;
+mod sym;
 
 struct B{
     test : i32
 }
 
-struct A{
-    child : Option<Rc<A>>
+struct Test{
+    value : i32
 }
 
 pub fn main() {
+    let mut syms = Rc::new(SymTable::new());
     let mut source = Source::new(String::from("test.si"));
-    let mut lexer = Lexer::new(source);
+    let mut lexer = Lexer::new(source, syms);
 
     let mut parser = Parser::new(lexer);
-    let module = parser.parse_module();
+    let mut module = parser.parse_module();
     println!("{:?}", "finish");
 
+    let mut res = NameResolution::new();
+    module.resolve(&mut res);
 
-    let strong = Rc::new("hello".to_owned());
-    let weak = Rc::downgrade(&strong);
-    assert!(ptr::eq(&*strong, weak.as_ptr()));
-    assert_eq!("hello", unsafe { &*weak.as_ptr() });
+    //let mut test = Rc::new(RefCell::new(Test{ value : 2 }));
+    //let mut test2 = test.clone();
+
+    //let test = test.borrow_mut();
+
+
+    //println!("{:?}", Rc::get_mut(&mut ).is_none())
 
 
     /*

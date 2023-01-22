@@ -1,8 +1,10 @@
 use std::process::id;
 use std::rc::Rc;
+use sha2::digest::generic_array::typenum::Exp;
 
-use crate::{Lexer, TokenVariant};
-use crate::lexer::{Symbol, Token, TokenEnter};
+use crate::{Lexer, SymTable, TokenVariant};
+use crate::sym::{Sym, SymRef};
+use crate::lexer::{Token, TokenEnter};
 use crate::ast::*;
 
 const LOOKAHEAD_SIZE: usize = 3;
@@ -108,7 +110,7 @@ impl Parser {
 
     fn parse_fn(&mut self) -> Box<FnDecl> {
         self.expect(TokenVariant::Fn);
-        let identifier = self.parse_identifier();
+        let ident = self.parse_identifier();
         self.expect(TokenVariant::LParen);
         let params = self.parse_param_list();
         let mut return_type : Option<Box<dyn ASTType>> = None;
@@ -119,28 +121,26 @@ impl Parser {
         let body = self.parse_block();
 
         Box::new(FnDecl{
-            identifier,
+            share: DeclShare::new(ident),
             params,
             return_type,
             body
         })
     }
 
-    fn parse_block(&mut self) -> Box<Block>{
+    fn parse_block(&mut self) -> Box<Expr>{
         self.expect(TokenVariant::LBrace);
         let stmts = self.parse_statement_list();
         println!("{:?}", stmts.len());
-        Box::new(Block{ stmts })
+        Box::new(Expr::Block(Block{ stmts }))
     }
 
     fn parse_field(&mut self, i: usize) -> Box<FieldDecl> {
-        let param_id = self.parse_identifier();
+        let ident = self.parse_identifier();
         self.accept(TokenVariant::Colon);
 
         return Box::new(FieldDecl {
-            identifier: param_id,
-            shadows: None,
-            depth: 0,
+            share: DeclShare::new(ident),
             ast_type: self.parse_type(),
             index: i,
         });
@@ -286,19 +286,19 @@ impl Parser {
         })
     }
 
-    fn parse_prefix_expr(&mut self, op: Operator) -> Box<dyn Expr> {
+    fn parse_prefix_expr(&mut self, op: Operator) -> Box<Expr> {
         let expr = self.parse_expr_prec(op.prec());
-        Box::new(PrefixExpr { expr, op })
+        Box::new(Expr::PrefixExpr(PrefixExpr { expr, op }))
     }
 
-    fn parse_primary_expr(&mut self) -> Box<dyn Expr> {
+    fn parse_primary_expr(&mut self) -> Box<Expr> {
         match self.variant() {
             TokenVariant::LitInt |
             TokenVariant::LitReal    |
             TokenVariant::LitString  |
             TokenVariant::LitChar    |
-            TokenVariant::LitBool => self.parse_literal(),
-            TokenVariant::Identifier => Box::new(IdentExpr { ident_use: Box::new(IdentUse::new(self.parse_identifier())) }),
+            TokenVariant::LitBool => Box::new(Expr::Literal(self.parse_literal())),
+            TokenVariant::Identifier => Box::new(Expr::Ident(IdentExpr { ident_use: Box::new(IdentUse::new(self.parse_identifier())) })),
             TokenVariant::LParen => {
                 self.lex();
                 let expr = self.parse_expr();
@@ -310,27 +310,27 @@ impl Parser {
         }
     }
 
-    fn parse_infix_expr(&mut self, lhs: Box<dyn Expr>, op: Operator) -> Box<dyn Expr> {
+    fn parse_infix_expr(&mut self, lhs: Box<Expr>, op: Operator) -> Box<Expr> {
         let rhs = self.parse_expr_prec(op.prec().next());
-        Box::new(InfixExpr { lhs, rhs, op })
+        Box::new(Expr::InfixExpr(InfixExpr { lhs, rhs, op }))
     }
 
-    fn parse_postfix_expr(&mut self, lhs: Box<dyn Expr>, op : Operator) -> Box<dyn Expr> {
+    fn parse_postfix_expr(&mut self, lhs: Box<Expr>, op : Operator) -> Box<Expr> {
         match op {
             Operator::Inc |
-            Operator::Dec => Box::new(PostfixExpr { expr: lhs, op }),
-            Operator::LeftParen => Box::new(FnCallExpr{ callee: lhs, args: self.parse_expr_list(TokenVariant::Comma, TokenVariant::RParen) }),
-            Operator::Dot => Box::new(FieldExpr{
+            Operator::Dec => Box::new(Expr::PostfixExpr(PostfixExpr { expr: lhs, op })),
+            Operator::LeftParen => Box::new(Expr::FnCallExpr(FnCallExpr{ callee: lhs, args: self.parse_expr_list(TokenVariant::Comma, TokenVariant::RParen) })),
+            Operator::Dot => Box::new(Expr::FieldExpr(FieldExpr{
                 target_: lhs,
                 identifier_: Box::new(IdentUse::new(self.parse_identifier()) ),
                 index_: 0
-            }),
+            })),
             _ => unreachable!()
         }
     }
 
 
-    fn parse_expr_prec(&mut self, prec: Prec) -> Box<dyn Expr> {
+    fn parse_expr_prec(&mut self, prec: Prec) -> Box<Expr> {
         let mut lhs = match self.parse_operator() {
             Some(op) => self.parse_prefix_expr(op),
             None => self.parse_primary_expr()
@@ -366,51 +366,52 @@ impl Parser {
     }
 
 
-    fn parse_literal(&mut self) -> Box<Literal> {
+    fn parse_literal(&mut self) -> Literal {
         let token = self.lex();
-        let str = token.symbol.unwrap().value;
-        Box::new(match token.variant
+        let str = &token.symbol.unwrap().value;
+
+        match token.variant
         {
             TokenVariant::LitReal => Literal::Real(str.parse::<f64>().unwrap()),
             TokenVariant::LitInt => Literal::Int(str.parse::<i64>().unwrap()),
-            TokenVariant::LitString => Literal::String(str),
+            TokenVariant::LitString => Literal::String(str.clone()),
             TokenVariant::LitChar => Literal::Char(str.chars().next().unwrap()),
             TokenVariant::LitBool => Literal::Bool(str == "true"),
             _ => unreachable!()
-        })
+        }
     }
 
-    fn parse_expr(&mut self) -> Box<dyn Expr> {
+    fn parse_expr(&mut self) -> Box<Expr> {
         let result = self.parse_expr_prec(Prec::Bottom);
         self.accept(TokenVariant::Semicolon);
         result
     }
 
-    fn parse_stmts(&mut self) -> Box<dyn Stmt>{
+    fn parse_stmts(&mut self) -> Box<Stmt>{
         match self.variant() {
             TokenVariant::Let => self.parse_decl(),
-            _=> Box::new(ExprStmt{ expr: self.parse_expr() })
+            _=> Box::new(Stmt::Expr(ExprStmt{ expr: self.parse_expr() }))
         }
     }
 
 
-    fn parse_if(&mut self) -> Box<IfExpr>{
+    fn parse_if(&mut self) -> Box<Expr>{
         self.expect(TokenVariant::If);
         let condition = self.parse_expr();
         self.check(TokenVariant::LBrace);
         let if_branch = self.parse_block();
 
-        let mut else_branch : Option<Box<dyn Expr>> = None;
+        let mut else_branch : Option<Box<Expr>> = None;
         if self.accept(TokenVariant::Else) {
             else_branch = Some(self.parse_block());
         }
 
-        Box::new(IfExpr{condition, if_branch, else_branch})
+        Box::new(Expr::IfExpr(IfExpr{condition, if_branch, else_branch}))
     }
 
-    fn parse_decl(&mut self) -> Box<LetStmt>{
+    fn parse_decl(&mut self) -> Box<Stmt>{
         self.accept(TokenVariant::Let);
-        let identifier = self.parse_identifier();
+        let ident = self.parse_identifier();
 
         let mut ast_type = None;
         if self.accept(TokenVariant::Colon) {
@@ -422,15 +423,16 @@ impl Parser {
             init = Some(self.parse_expr());
         }
 
-        Box::new(LetStmt{ local_decl: Box::new(Decl{
-            identifier,
-            shadows: None,
-            depth: 0,
-            ast_type
-        }), init })
+        Box::new(Stmt::Let(LetStmt{
+            local_decl: Box::new(LetDecl {
+                share : DeclShare::new(ident),
+                ast_type
+            }),
+            init
+        }))
     }
 
-    fn parse_expr_list(&mut self, separator: TokenVariant, delimiter: TokenVariant) -> Vec<Box<dyn Expr>> {
+    fn parse_expr_list(&mut self, separator: TokenVariant, delimiter: TokenVariant) -> Vec<Box<Expr>> {
         let mut exprs = Vec::new();
         while !self.accept(delimiter) {
             if !exprs.is_empty() {
@@ -441,7 +443,7 @@ impl Parser {
         return exprs;
     }
 
-    fn parse_statement_list(&mut self) -> Vec<Box<dyn Stmt>> {
+    fn parse_statement_list(&mut self) -> Vec<Box<Stmt>> {
         let mut stmts = Vec::new();
         while !self.accept(TokenVariant::RBrace) {
             if !stmts.is_empty() {
@@ -452,19 +454,17 @@ impl Parser {
         return stmts;
     }
 
-    fn parse_param(&mut self) -> Box<Decl>{
-        let param_id = self.parse_identifier();
+    fn parse_param(&mut self) -> Box<LetDecl>{
+        let ident = self.parse_identifier();
         self.accept(TokenVariant::Colon);
 
-        Box::new(Decl{
-            identifier: param_id,
-            shadows: None,
-            depth: 0,
+        Box::new(LetDecl {
+            share: DeclShare::new(ident),
             ast_type: Some(self.parse_type())
         })
     }
 
-    fn parse_param_list(&mut self) -> Vec<Box<Decl>> {
+    fn parse_param_list(&mut self) -> Vec<Box<LetDecl>> {
         let mut params = Vec::new();
         while !self.accept(TokenVariant::RParen) {
             if !params.is_empty() {

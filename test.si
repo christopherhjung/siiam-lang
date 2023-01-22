@@ -10,3 +10,32 @@ fn main() : i32{
     }
     a - 1
 }
+/*
+
+fn lol(  ){
+    let return2 : fn(i32) = return;
+
+    let result = (a : i32) {
+
+        return2(a + 1)
+    }
+
+    if(){
+        return(test())
+    }
+}
+
+fn test() : i32{
+
+    let i32 = int(32);
+
+    return x
+
+}
+
+
+fn test(  ) -> i8{
+
+    return 2:i32
+
+}*/
