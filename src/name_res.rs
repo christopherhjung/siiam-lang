@@ -7,13 +7,13 @@ use crate::visitor::Visitor;
 use crate::Module;
 use crate::sym::{Sym};
 
-pub struct NameResolution {
+pub struct NameRes {
     levels : Vec<usize>,
     decls : Vec<*const Decl>,
     symbol2decl : HashMap<usize, *const Decl>
 }
 
-impl NameResolution {
+impl NameRes {
     pub fn push_scope(&mut self){
         self.levels.push(self.decls.len())
     }
@@ -25,18 +25,20 @@ impl NameResolution {
             let last_decl_ref = self.decls.pop().unwrap();
             let mut last_decl = unsafe { &*last_decl_ref };
 
-            self.symbol2decl.insert(
-                last_decl.ident.sym.id,
-                last_decl.shadows.as_ref().unwrap().clone()
-            );
+            if let Some(shadows) = last_decl.shadows{
+                self.symbol2decl.insert(
+                    last_decl.ident.sym.id,
+                    shadows
+                );
+            }
         }
 
         self.levels.pop();
     }
 
     fn lookup(&mut self, sym : Sym) -> Option<*const Decl>{
-        if let Some(rc) = self.symbol2decl.get(&sym.id){
-            Some(rc.clone())
+        if let Some(decl) = self.symbol2decl.get(&sym.id){
+            Some(*decl)
         }else{
             None
         }
@@ -46,7 +48,7 @@ impl NameResolution {
         if let Some(other) = self.lookup(sym) {
             let mut decl = unsafe { &*other };
             if decl.depth == self.levels.len(){
-                return Some(other.clone())
+                return Some(other)
             }
         }
 
@@ -72,8 +74,8 @@ impl NameResolution {
         self.visit_module(module);
     }
 
-    pub fn new() -> NameResolution {
-        NameResolution {
+    pub fn new() -> NameRes {
+        NameRes {
             levels: Vec::new(),
             decls: Vec::new(),
             symbol2decl: HashMap::new()
@@ -81,13 +83,21 @@ impl NameResolution {
     }
 }
 
-impl Visitor for NameResolution{
+impl Visitor for NameRes {
     fn enter_decl(&mut self, decl: &mut Decl) {
         match &mut decl.kind {
-            DeclKind::LetDecl(kind) => self.insert(decl),
-            DeclKind::FnDecl(kind) => self.insert(decl),
+            DeclKind::LetDecl(_) => self.insert(decl),
+            DeclKind::FnDecl(_) => self.insert(decl),
             _ => return
         }
+    }
+
+    fn enter_block(&mut self, decl: &mut Block) {
+        self.push_scope();
+    }
+
+    fn exit_block(&mut self, decl: &mut Block) {
+        self.pop_scope();
     }
 
     fn visit_ident_expr(&mut self, ident_expr: &mut IdentExpr) {

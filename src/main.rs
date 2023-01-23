@@ -5,14 +5,14 @@ use std::rc::Rc;
 use crate::ast::{ Decl, Module};
 use crate::lexer::{Lexer, TokenKind};
 use crate::parser::Parser;
-use crate::name_resolution::{NameResolution};
+use crate::name_res::{NameRes};
 use crate::source::Source;
 use crate::sym::*;
 
 mod lexer;
 mod source;
 mod parser;
-mod name_resolution;
+mod name_res;
 mod ast;
 mod sym;
 mod visitor;
@@ -27,14 +27,14 @@ struct Test{
 }
 
 pub fn main() {
-    let mut syms = Rc::new(RefCell::new(SymTable::new()));
+    let mut sym_table = Rc::new(RefCell::new(SymTable::new()));
     let mut source = Source::new(String::from("test.si"));
-    let mut lexer = Lexer::new(source, syms.clone());
+    let mut lexer = Lexer::new(source, sym_table.clone());
 
-    let mut parser = Parser::new(lexer, syms);
+    let mut parser = Parser::new(lexer, sym_table);
     let mut module = parser.parse_module();
 
-    let mut res = NameResolution::new();
+    let mut res = NameRes::new();
     res.resolve(&mut module);
 
 
