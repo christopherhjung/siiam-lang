@@ -1,9 +1,10 @@
+use std::cell::RefCell;
 use std::process::id;
 use std::rc::Rc;
 use sha2::digest::generic_array::typenum::Exp;
 
-use crate::{Lexer, SymTable, TokenVariant};
-use crate::sym::{Sym, SymRef};
+use crate::{Lexer, SymTable, TokenKind};
+use crate::sym::{Sym};
 use crate::lexer::{Token, TokenEnter};
 use crate::ast::*;
 
@@ -14,6 +15,7 @@ pub struct Parser {
     lookahead: [Token; LOOKAHEAD_SIZE],
     lookahead_idx: usize,
     new_lines: usize,
+    sym_table: Rc<RefCell<SymTable>>
 }
 
 impl Parser {
@@ -29,8 +31,8 @@ impl Parser {
         return result;
     }
 
-    fn variant(&mut self) -> TokenVariant {
-        self.lookahead().variant
+    fn variant(&mut self) -> TokenKind {
+        self.lookahead().kind
     }
 
     fn enter(&mut self, enter: TokenEnter) -> bool {
@@ -45,11 +47,11 @@ impl Parser {
         assert!(i < LOOKAHEAD_SIZE, "lookahead overflow!");
         return &mut self.lookahead[(i + self.lookahead_idx) % LOOKAHEAD_SIZE];
     }
-    fn check(&mut self, variant: TokenVariant) -> bool {
+    fn check(&mut self, variant: TokenKind) -> bool {
         variant == self.variant()
     }
 
-    fn accept(&mut self, variant: TokenVariant) -> bool {
+    fn accept(&mut self, variant: TokenKind) -> bool {
         if variant == self.variant() {
             self.shift();
             return true;
@@ -58,7 +60,7 @@ impl Parser {
         return false;
     }
 
-    fn follow(&mut self, variant: TokenVariant) -> bool {
+    fn follow(&mut self, variant: TokenKind) -> bool {
         if self.enter(TokenEnter::Token) {
             return self.accept(variant);
         }
@@ -66,7 +68,7 @@ impl Parser {
         return false;
     }
 
-    fn expect(&mut self, variant: TokenVariant) {
+    fn expect(&mut self, variant: TokenKind) {
         assert!(self.accept(variant), "Variants do not match!");
     }
 
@@ -76,7 +78,7 @@ impl Parser {
 
     pub fn parse_module(&mut self) -> Box<Module> {
         let mut items = Vec::new();
-        while !self.accept(TokenVariant::Eof) && !self.accept(TokenVariant::RBrace) {
+        while !self.accept(TokenKind::Eof) && !self.accept(TokenKind::RBrace) {
             items.push(self.parse_item());
         }
         Box::new(Module { items })
@@ -85,35 +87,35 @@ impl Parser {
 
     fn parse_item(&mut self) -> Box<Decl> {
         return match self.variant() {
-            TokenVariant::Fn => self.parse_fn(),
-            TokenVariant::Struct => self.parse_struct(),
+            TokenKind::Fn => self.parse_fn(),
+            TokenKind::Struct => self.parse_struct(),
             _ => unreachable!()
         }
     }
 
     fn parse_identifier(&mut self) -> Box<Ident> {
-        assert!(self.check(TokenVariant::Identifier));
+        assert!(self.check(TokenKind::Identifier));
         let sym = self.lex().symbol.unwrap();
         let ident = Ident { sym };
         return Box::new(ident);
     }
 
     fn parse_struct(&mut self) -> Box<Decl> {
-        self.expect(TokenVariant::Struct);
+        self.expect(TokenKind::Struct);
         let ident = self.parse_identifier();
-        self.expect(TokenVariant::LBrace);
+        self.expect(TokenKind::LBrace);
         let fields = self.parse_field_list();
         Box::new(Decl::new(ident, DeclKind::StructDecl(StructDecl{ fields })))
     }
 
 
     fn parse_fn(&mut self) -> Box<Decl> {
-        self.expect(TokenVariant::Fn);
+        self.expect(TokenKind::Fn);
         let ident = self.parse_identifier();
-        self.expect(TokenVariant::LParen);
+        self.expect(TokenKind::LParen);
         let params = self.parse_param_list();
         let mut return_type : Option<Box<ASTType>> = None;
-        if self.accept(TokenVariant::Colon) {
+        if self.accept(TokenKind::Colon) {
             return_type = Some(self.parse_type());
         }
 
@@ -127,14 +129,14 @@ impl Parser {
     }
 
     fn parse_block(&mut self) -> Box<Expr>{
-        self.expect(TokenVariant::LBrace);
+        self.expect(TokenKind::LBrace);
         let stmts = self.parse_statement_list();
         Box::new(Expr::Block(Block{ stmts }))
     }
 
     fn parse_field(&mut self, i: usize) -> Box<Decl> {
         let ident = self.parse_identifier();
-        self.accept(TokenVariant::Colon);
+        self.accept(TokenKind::Colon);
 
         Box::new(Decl::new(ident, DeclKind::FieldDecl(FieldDecl{
             ast_type: self.parse_type(),
@@ -144,21 +146,21 @@ impl Parser {
 
     fn parse_type(&mut self) -> Box<ASTType> {
         match self.variant() {
-            TokenVariant::TypeBool |
-            TokenVariant::TypeByte |
-            TokenVariant::TypeChar |
-            TokenVariant::TypeString |
-            TokenVariant::TypeInt |
-            TokenVariant::TypeLong |
-            TokenVariant::TypeFloat |
-            TokenVariant::TypeDouble |
-            TokenVariant::TypeUnit => {
+            TokenKind::TypeBool |
+            TokenKind::TypeByte |
+            TokenKind::TypeChar |
+            TokenKind::TypeString |
+            TokenKind::TypeInt |
+            TokenKind::TypeLong |
+            TokenKind::TypeFloat |
+            TokenKind::TypeDouble |
+            TokenKind::TypeUnit => {
                 let token = self.lex();
                 return Box::new(ASTType::Prim(PrimASTType {
-                    variant: token.variant
+                    variant: token.kind
                 }));
             }
-            TokenVariant::Identifier => {
+            TokenKind::Identifier => {
                 return Box::new(ASTType::Super(SuperASTType{
                     ident_use: Box::new(IdentUse {
                         ident: self.parse_identifier(),
@@ -166,11 +168,11 @@ impl Parser {
                     })
                 }));
             }
-            TokenVariant::Fn => {
+            TokenKind::Fn => {
                 self.lex();
-                self.accept(TokenVariant::LParen);
+                self.accept(TokenKind::LParen);
                 let param_types = self.parse_type_list();
-                self.accept(TokenVariant::Arrow);
+                self.accept(TokenKind::Arrow);
                 let return_type = self.parse_type();
                 return Box::new(ASTType::Fn(FnASTType { param_types, return_type }));
             }
@@ -181,7 +183,7 @@ impl Parser {
         }
     }
 
-    fn parse_list<T>(&mut self, mut f: impl FnMut() -> Box<T>, separator: TokenVariant, delimiter: TokenVariant) -> Vec<Box<T>> {
+    fn parse_list<T>(&mut self, mut f: impl FnMut() -> Box<T>, separator: TokenKind, delimiter: TokenKind) -> Vec<Box<T>> {
         let mut exprs = Vec::new();
         while !self.accept(delimiter) {
             if !exprs.is_empty() {
@@ -193,89 +195,89 @@ impl Parser {
     }
 
     fn parse_operator(&mut self) -> Option<Operator> {
-        Some(if self.accept(TokenVariant::Plus) {
+        Some(if self.accept(TokenKind::Plus) {
             //+, ++, +=
-            if self.follow(TokenVariant::Plus) {
+            if self.follow(TokenKind::Plus) {
                 Operator::Inc
-            } else if self.follow(TokenVariant::Assign) {
+            } else if self.follow(TokenKind::Assign) {
                 Operator::Assign
             } else {
                 Operator::Add
             }
-        } else if self.accept(TokenVariant::Minus) {
+        } else if self.accept(TokenKind::Minus) {
             // -, --, -=, ->
-            if self.follow(TokenVariant::Minus) {
+            if self.follow(TokenKind::Minus) {
                 Operator::Dec
-            } else if self.follow(TokenVariant::RAngle) {
+            } else if self.follow(TokenKind::RAngle) {
                 Operator::Arrow
-            } else if self.follow(TokenVariant::Assign) {
+            } else if self.follow(TokenKind::Assign) {
                 Operator::SubAssign
             } else {
                 Operator::Sub
             }
-        } else if self.accept(TokenVariant::Star) {
+        } else if self.accept(TokenKind::Star) {
             // *, *=
-            if self.follow(TokenVariant::Assign) {
+            if self.follow(TokenKind::Assign) {
                 Operator::MulAssign
             } else {
                 Operator::Mul
             }
-        } else if self.accept(TokenVariant::Slash) {
+        } else if self.accept(TokenKind::Slash) {
             // /, /=
-            if self.follow(TokenVariant::Assign) {
+            if self.follow(TokenKind::Assign) {
                 Operator::DivAssign
             } else {
                 Operator::Div
             }
-        } else if self.accept(TokenVariant::LAngle) {
+        } else if self.accept(TokenKind::LAngle) {
             // <, <=, <<
-            if self.follow(TokenVariant::Assign) {
+            if self.follow(TokenKind::Assign) {
                 Operator::Le
-            } else if self.follow(TokenVariant::LAngle) {
+            } else if self.follow(TokenKind::LAngle) {
                 Operator::Shl
             } else {
                 Operator::Lt
             }
-        } else if self.accept(TokenVariant::RAngle) {
+        } else if self.accept(TokenKind::RAngle) {
             // >, >=, >>
-            if self.follow(TokenVariant::Assign) {
+            if self.follow(TokenKind::Assign) {
                 Operator::Ge
-            } else if self.follow(TokenVariant::RAngle) {
+            } else if self.follow(TokenKind::RAngle) {
                 Operator::Shr
             } else {
                 Operator::Gt
             }
-        } else if self.accept(TokenVariant::Assign) {
+        } else if self.accept(TokenKind::Assign) {
             //=, ==
-            if self.follow(TokenVariant::Assign) {
+            if self.follow(TokenKind::Assign) {
                 Operator::Eq
             } else {
                 Operator::Assign
             }
-        } else if self.accept(TokenVariant::Not) {
+        } else if self.accept(TokenKind::Not) {
             // !=, !
-            if self.follow(TokenVariant::Assign) {
+            if self.follow(TokenKind::Assign) {
                 Operator::Ne
             } else {
                 Operator::Not
             }
-        } else if self.accept(TokenVariant::Or) {
+        } else if self.accept(TokenKind::Or) {
             //||, |
-            if self.follow(TokenVariant::Or) {
+            if self.follow(TokenKind::Or) {
                 Operator::OrOr
             } else {
                 Operator::Or
             }
-        } else if self.accept(TokenVariant::And) {
+        } else if self.accept(TokenKind::And) {
             //&&, &
-            if self.follow(TokenVariant::And) {
+            if self.follow(TokenKind::And) {
                 Operator::AndAnd
             } else {
                 Operator::And
             }
-        } else if self.accept(TokenVariant::LBracket) {
+        } else if self.accept(TokenKind::LBracket) {
             Operator::LeftBracket
-        } else if self.accept(TokenVariant::LParen) {
+        } else if self.accept(TokenKind::LParen) {
             Operator::LeftParen
         } else {
             return None;
@@ -289,19 +291,19 @@ impl Parser {
 
     fn parse_primary_expr(&mut self) -> Box<Expr> {
         match self.variant() {
-            TokenVariant::LitInt |
-            TokenVariant::LitReal    |
-            TokenVariant::LitString  |
-            TokenVariant::LitChar    |
-            TokenVariant::LitBool => Box::new(Expr::Literal(self.parse_literal())),
-            TokenVariant::Identifier => Box::new(Expr::Ident(IdentExpr { ident_use: Box::new(IdentUse::new(self.parse_identifier())) })),
-            TokenVariant::LParen => {
+            TokenKind::LitInt |
+            TokenKind::LitReal    |
+            TokenKind::LitString  |
+            TokenKind::LitChar    |
+            TokenKind::LitBool => Box::new(Expr::Literal(self.parse_literal())),
+            TokenKind::Identifier => Box::new(Expr::Ident(IdentExpr { ident_use: Box::new(IdentUse::new(self.parse_identifier())) })),
+            TokenKind::LParen => {
                 self.lex();
                 let expr = self.parse_expr();
-                self.expect(TokenVariant::RParen);
+                self.expect(TokenKind::RParen);
                 expr
             }
-            TokenVariant::If => self.parse_if(),
+            TokenKind::If => self.parse_if(),
             _ => unreachable!()
         }
     }
@@ -315,7 +317,7 @@ impl Parser {
         match op {
             Operator::Inc |
             Operator::Dec => Box::new(Expr::Postfix(PostfixExpr { expr: lhs, op })),
-            Operator::LeftParen => Box::new(Expr::FnCall(FnCallExpr{ callee: lhs, args: self.parse_expr_list(TokenVariant::Comma, TokenVariant::RParen) })),
+            Operator::LeftParen => Box::new(Expr::FnCall(FnCallExpr{ callee: lhs, args: self.parse_expr_list(TokenKind::Comma, TokenKind::RParen) })),
             Operator::Dot => Box::new(Expr::Field(FieldExpr{
                 target_: lhs,
                 identifier_: Box::new(IdentUse::new(self.parse_identifier()) ),
@@ -364,41 +366,42 @@ impl Parser {
 
     fn parse_literal(&mut self) -> Literal {
         let token = self.lex();
-        let str = &token.symbol.unwrap().value;
+        let sym = &token.symbol.unwrap();
+        let str = self.sym_table.borrow().get(*sym);
 
-        match token.variant
+        match token.kind
         {
-            TokenVariant::LitReal => Literal::Real(str.parse::<f64>().unwrap()),
-            TokenVariant::LitInt => Literal::Int(str.parse::<i64>().unwrap()),
-            TokenVariant::LitString => Literal::String(str.clone()),
-            TokenVariant::LitChar => Literal::Char(str.chars().next().unwrap()),
-            TokenVariant::LitBool => Literal::Bool(str == "true"),
+            TokenKind::LitReal => Literal::Real(str.parse::<f64>().unwrap()),
+            TokenKind::LitInt => Literal::Int(str.parse::<i64>().unwrap()),
+            TokenKind::LitString => Literal::String(str.clone()),
+            TokenKind::LitChar => Literal::Char(str.chars().next().unwrap()),
+            TokenKind::LitBool => Literal::Bool(str == "true"),
             _ => unreachable!()
         }
     }
 
     fn parse_expr(&mut self) -> Box<Expr> {
         let result = self.parse_expr_prec(Prec::Bottom);
-        self.accept(TokenVariant::Semicolon);
+        self.accept(TokenKind::Semicolon);
         result
     }
 
     fn parse_stmts(&mut self) -> Box<Stmt>{
         match self.variant() {
-            TokenVariant::Let => self.parse_decl(),
+            TokenKind::Let => self.parse_decl(),
             _=> Box::new(Stmt::Expr(ExprStmt{ expr: self.parse_expr() }))
         }
     }
 
 
     fn parse_if(&mut self) -> Box<Expr>{
-        self.expect(TokenVariant::If);
+        self.expect(TokenKind::If);
         let condition = self.parse_expr();
-        self.check(TokenVariant::LBrace);
+        self.check(TokenKind::LBrace);
         let if_branch = self.parse_block();
 
         let mut else_branch : Option<Box<Expr>> = None;
-        if self.accept(TokenVariant::Else) {
+        if self.accept(TokenKind::Else) {
             else_branch = Some(self.parse_block());
         }
 
@@ -406,16 +409,16 @@ impl Parser {
     }
 
     fn parse_decl(&mut self) -> Box<Stmt>{
-        self.accept(TokenVariant::Let);
+        self.accept(TokenKind::Let);
         let ident = self.parse_identifier();
 
         let mut ast_type = None;
-        if self.accept(TokenVariant::Colon) {
+        if self.accept(TokenKind::Colon) {
             ast_type = Some(self.parse_type());
         }
 
         let mut init = None;
-        if self.accept(TokenVariant::Assign) {
+        if self.accept(TokenKind::Assign) {
             init = Some(self.parse_expr());
         }
 
@@ -427,7 +430,7 @@ impl Parser {
         }))
     }
 
-    fn parse_expr_list(&mut self, separator: TokenVariant, delimiter: TokenVariant) -> Vec<Box<Expr>> {
+    fn parse_expr_list(&mut self, separator: TokenKind, delimiter: TokenKind) -> Vec<Box<Expr>> {
         let mut exprs = Vec::new();
         while !self.accept(delimiter) {
             if !exprs.is_empty() {
@@ -440,7 +443,7 @@ impl Parser {
 
     fn parse_statement_list(&mut self) -> Vec<Box<Stmt>> {
         let mut stmts = Vec::new();
-        while !self.accept(TokenVariant::RBrace) {
+        while !self.accept(TokenKind::RBrace) {
             if !stmts.is_empty() {
                 assert!(self.enter(TokenEnter::NL), "Statement does not start with a new line");
             }
@@ -451,7 +454,7 @@ impl Parser {
 
     fn parse_param(&mut self) -> Box<Decl>{
         let ident = self.parse_identifier();
-        self.accept(TokenVariant::Colon);
+        self.accept(TokenKind::Colon);
 
         Box::new(Decl::new(ident, DeclKind::LetDecl(LetDecl {
             ast_type: Some(self.parse_type())
@@ -460,9 +463,9 @@ impl Parser {
 
     fn parse_param_list(&mut self) -> Vec<Box<Decl>> {
         let mut params = Vec::new();
-        while !self.accept(TokenVariant::RParen) {
+        while !self.accept(TokenKind::RParen) {
             if !params.is_empty() {
-                self.expect(TokenVariant::Comma);
+                self.expect(TokenKind::Comma);
             }
             params.push(self.parse_param());
         }
@@ -471,7 +474,7 @@ impl Parser {
 
     fn parse_field_list(&mut self) -> Vec<Box<Decl>> {
         let mut exprs = Vec::new();
-        while !self.accept(TokenVariant::RBrace) {
+        while !self.accept(TokenKind::RBrace) {
             if !exprs.is_empty() {
                 self.expect_enter(TokenEnter::NL);
             }
@@ -482,16 +485,16 @@ impl Parser {
 
     fn parse_type_list(&mut self) -> Vec<Box<ASTType>> {
         let mut types = Vec::new();
-        while !self.accept(TokenVariant::RParen) {
+        while !self.accept(TokenKind::RParen) {
             if !types.is_empty() {
-                self.expect(TokenVariant::Comma);
+                self.expect(TokenKind::Comma);
             }
             types.push(self.parse_type());
         }
         return types;
     }
 
-    pub fn new(mut lexer: Lexer) -> Parser {
+    pub fn new(mut lexer: Lexer, sym_table: Rc<RefCell<SymTable>>) -> Parser {
         let lookahead = [lexer.next_token(), lexer.next_token(), lexer.next_token()];
 
         Parser {
@@ -499,6 +502,7 @@ impl Parser {
             lookahead,
             lookahead_idx: 0,
             new_lines: 0,
+            sym_table
         }
     }
 }

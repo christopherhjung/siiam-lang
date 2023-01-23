@@ -3,7 +3,7 @@ use std::cell::{Cell, RefCell};
 use std::ptr;
 use std::rc::Rc;
 use crate::ast::{ Decl, Module};
-use crate::lexer::{Lexer, TokenVariant};
+use crate::lexer::{Lexer, TokenKind};
 use crate::parser::Parser;
 use crate::name_resolution::{NameResolution};
 use crate::source::Source;
@@ -27,11 +27,11 @@ struct Test{
 }
 
 pub fn main() {
-    let mut syms = Rc::new(SymTable::new());
+    let mut syms = Rc::new(RefCell::new(SymTable::new()));
     let mut source = Source::new(String::from("test.si"));
-    let mut lexer = Lexer::new(source, syms);
+    let mut lexer = Lexer::new(source, syms.clone());
 
-    let mut parser = Parser::new(lexer);
+    let mut parser = Parser::new(lexer, syms);
     let mut module = parser.parse_module();
 
     let mut res = NameResolution::new();

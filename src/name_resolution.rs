@@ -5,16 +5,12 @@ use std::rc::{Rc, Weak};
 use crate::ast::*;
 use crate::visitor::Visitor;
 use crate::Module;
-use crate::sym::{Sym, SymRef};
+use crate::sym::{Sym};
 
 pub struct NameResolution {
     levels : Vec<usize>,
     decls : Vec<*const Decl>,
-    symbol2decl : HashMap<*const Sym, *const Decl>
-}
-
-fn key(sym: &SymRef) -> *const Sym{
-    &**sym as *const Sym
+    symbol2decl : HashMap<usize, *const Decl>
 }
 
 impl NameResolution {
@@ -30,7 +26,7 @@ impl NameResolution {
             let mut last_decl = unsafe { &*last_decl_ref };
 
             self.symbol2decl.insert(
-                key(&last_decl.ident.sym),
+                last_decl.ident.sym.id,
                 last_decl.shadows.as_ref().unwrap().clone()
             );
         }
@@ -38,17 +34,15 @@ impl NameResolution {
         self.levels.pop();
     }
 
-    fn lookup(&mut self, sym : &SymRef) -> Option<*const Decl>{
-        println!("lookup {:#?} {:#?}", sym.value, key(&sym) as u64);
-
-        if let Some(rc) = self.symbol2decl.get(&key(sym)){
+    fn lookup(&mut self, sym : Sym) -> Option<*const Decl>{
+        if let Some(rc) = self.symbol2decl.get(&sym.id){
             Some(rc.clone())
         }else{
             None
         }
     }
 
-    pub fn find_local(&mut self, sym : &SymRef) -> Option<*const Decl>{
+    pub fn find_local(&mut self, sym : Sym) -> Option<*const Decl>{
         if let Some(other) = self.lookup(sym) {
             let mut decl = unsafe { &*other };
             if decl.depth == self.levels.len(){
@@ -61,18 +55,16 @@ impl NameResolution {
 
     pub fn insert(&mut self, decl : &mut Decl){
         let decl_ptr = decl as *const Decl;
-        let sym = &mut decl.ident.sym;
+        let sym = decl.ident.sym;
 
         decl.depth = self.levels.len();
-        decl.shadows = self.lookup(&sym);
+        decl.shadows = self.lookup(sym);
 
-        if let Some( other ) = self.find_local(&sym){
+        if let Some( other ) = self.find_local(sym){
             unreachable!();
         }
 
-        println!("insert {:#?} {:#?}", sym.value, key(&sym) as u64);
-
-        self.symbol2decl.insert(key(&sym), decl_ptr);
+        self.symbol2decl.insert(sym.id, decl_ptr);
         self.decls.push(decl_ptr);
     }
 
@@ -101,7 +93,7 @@ impl Visitor for NameResolution{
     fn visit_ident_expr(&mut self, ident_expr: &mut IdentExpr) {
 
         let ident_use = &mut ident_expr.ident_use;
-        let decl = self.lookup(&ident_use.ident.sym);
+        let decl = self.lookup(ident_use.ident.sym);
         ident_use.decl = decl;
         //println!("{:#?}", decl);
         //println!("{:#?}", ident_expr);

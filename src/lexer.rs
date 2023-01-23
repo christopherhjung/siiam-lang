@@ -9,14 +9,14 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 use crate::source::Source;
-use crate::sym::{Sym, SymRef};
+use crate::sym::{Sym};
 use crate::SymTable;
 
 pub struct Lexer {
     token: Token,
     source: Source,
     enter: TokenEnter,
-    sym_table: Rc<SymTable>
+    sym_table: Rc<RefCell<SymTable>>
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -50,13 +50,13 @@ impl Clone for Loc {
 
 #[derive(Clone, Debug)]
 pub struct Token {
-    pub variant: TokenVariant,
-    pub symbol: Option<SymRef>,
+    pub kind: TokenKind,
+    pub symbol: Option<Sym>,
     pub loc: Loc,
     pub enter: TokenEnter
 }
 #[derive(PartialEq, Copy, Clone, Debug, EnumIter)]
-pub enum TokenVariant {
+pub enum TokenKind {
     Or,
     And,
     Not,
@@ -88,26 +88,26 @@ pub enum TokenVariant {
     Identifier
 }
 
-impl TokenVariant{
+impl TokenKind {
     fn keyword(&self) -> &str{
         match self {
-            TokenVariant::While =>  "while",
-            TokenVariant::For =>  "for",
-            TokenVariant::If =>  "if",
-            TokenVariant::Else =>  "else",
-            TokenVariant::Let =>  "let",
-            TokenVariant::Fn =>  "fn",
-            TokenVariant::Return =>  "return",
-            TokenVariant::TypeString =>  "String",
-            TokenVariant::TypeChar =>  "char",
-            TokenVariant::TypeBool =>  "bool",
-            TokenVariant::TypeByte =>  "i8",
-            TokenVariant::TypeInt =>  "i32",
-            TokenVariant::TypeLong =>  "i64",
-            TokenVariant::TypeFloat =>  "f32",
-            TokenVariant::TypeDouble =>  "f64",
-            TokenVariant::TypeUnit =>  "Unit",
-            TokenVariant::Struct =>  "struct",
+            TokenKind::While =>  "while",
+            TokenKind::For =>  "for",
+            TokenKind::If =>  "if",
+            TokenKind::Else =>  "else",
+            TokenKind::Let =>  "let",
+            TokenKind::Fn =>  "fn",
+            TokenKind::Return =>  "return",
+            TokenKind::TypeString =>  "String",
+            TokenKind::TypeChar =>  "char",
+            TokenKind::TypeBool =>  "bool",
+            TokenKind::TypeByte =>  "i8",
+            TokenKind::TypeInt =>  "i32",
+            TokenKind::TypeLong =>  "i64",
+            TokenKind::TypeFloat =>  "f32",
+            TokenKind::TypeDouble =>  "f64",
+            TokenKind::TypeUnit =>  "Unit",
+            TokenKind::Struct =>  "struct",
             _ =>  "",
         }
     }
@@ -154,25 +154,24 @@ impl Lexer {
         return self.source.peek() == None;
     }
 
-    fn finish(&mut self, variant: TokenVariant) {
-        self.token.variant = variant;
+    fn finish(&mut self, kind: TokenKind) {
+        self.token.kind = kind;
         self.token.symbol = None;
     }
 
-    fn finish_str(&mut self, variant: TokenVariant, str: String) {
-        self.token.variant = variant;
-        if variant == TokenVariant::Identifier {
-            for elem in TokenVariant::iter(){
+    fn finish_str(&mut self, kind: TokenKind, str: String) {
+        self.token.kind = kind;
+        if kind == TokenKind::Identifier {
+            for elem in TokenKind::iter(){
                 if elem.keyword() == str{
-                    self.token.variant = elem;
+                    self.token.kind = elem;
                     self.token.symbol = None;
                     return;
                 }
             }
         }
-        let tes = Rc::get_mut(&mut self.sym_table);
-        let a = tes.unwrap();
-        self.token.symbol = Some(a.from(str));
+        let mut sym_table = self.sym_table.borrow_mut();
+        self.token.symbol = Some(sym_table.from(str));
     }
 
     fn accept_char(&mut self, expect : char) -> bool{
@@ -203,29 +202,29 @@ impl Lexer {
         self.token.clone()
     }
 
-    fn match_sign(&mut self) -> Option<TokenVariant>{
+    fn match_sign(&mut self) -> Option<TokenKind>{
         if let Some(ch) = self.source.peek() {
             let result = Some(match ch {
-                '+' => TokenVariant::Plus,
-                '-' => TokenVariant::Minus,
-                '*' => TokenVariant::Star,
-                '^' => TokenVariant::Hat,
-                '=' => TokenVariant::Assign,
-                '!' => TokenVariant::Not,
-                ',' => TokenVariant::Comma,
-                '.' => TokenVariant::Dot,
-                ':' => TokenVariant::Colon,
-                ';' => TokenVariant::Semicolon,
-                '|' => TokenVariant::Or,
-                '&' => TokenVariant::And,
-                '<' => TokenVariant::LAngle,
-                '>' => TokenVariant::RAngle,
-                '(' => TokenVariant::LParen,
-                ')' => TokenVariant::RParen,
-                '[' => TokenVariant::LBracket,
-                ']' => TokenVariant::RBracket,
-                '{' => TokenVariant::LBrace,
-                '}' => TokenVariant::RBrace,
+                '+' => TokenKind::Plus,
+                '-' => TokenKind::Minus,
+                '*' => TokenKind::Star,
+                '^' => TokenKind::Hat,
+                '=' => TokenKind::Assign,
+                '!' => TokenKind::Not,
+                ',' => TokenKind::Comma,
+                '.' => TokenKind::Dot,
+                ':' => TokenKind::Colon,
+                ';' => TokenKind::Semicolon,
+                '|' => TokenKind::Or,
+                '&' => TokenKind::And,
+                '<' => TokenKind::LAngle,
+                '>' => TokenKind::RAngle,
+                '(' => TokenKind::LParen,
+                ')' => TokenKind::RParen,
+                '[' => TokenKind::LBracket,
+                ']' => TokenKind::RBracket,
+                '{' => TokenKind::LBrace,
+                '}' => TokenKind::RBrace,
                 _ => return None
             });
             self.next();
@@ -240,7 +239,7 @@ impl Lexer {
             self.source.reset_loc();
 
             if self.is_eof() {
-                return self.finish(TokenVariant::Eof);
+                return self.finish(TokenKind::Eof);
             }
 
             if self.accept_pred(space) {
@@ -260,7 +259,7 @@ impl Lexer {
                     let mut depth = 1;
                     loop {
                         if self.is_eof() {
-                            return self.finish(TokenVariant::Error);
+                            return self.finish(TokenKind::Error);
                         }
 
                         if self.accept_char('/') {
@@ -285,7 +284,7 @@ impl Lexer {
                 if self.accept_char('/') {
                     loop {
                         if self.is_eof() {
-                            return self.finish(TokenVariant::Error);
+                            return self.finish(TokenKind::Error);
                         }
 
                         if self.accept_char('\n') {
@@ -296,7 +295,7 @@ impl Lexer {
                     }
                     continue;
                 }
-                return self.finish(TokenVariant::Slash);
+                return self.finish(TokenKind::Slash);
             }
 
             if let Some(token) = self.match_sign(){
@@ -308,25 +307,25 @@ impl Lexer {
             // identifiers/keywords
             if self.identifier(&mut str) {
                 if str == "true" || str == "false" {
-                    return self.finish_str(TokenVariant::LitBool, str);
+                    return self.finish_str(TokenKind::LitBool, str);
                 }
-                return self.finish_str(TokenVariant::Identifier, str);
+                return self.finish_str(TokenKind::Identifier, str);
             }
 
             // char literal
             if self.accept_char('\'') {
                 if self.accept_char('\'') {
-                    return self.finish(TokenVariant::Error);
+                    return self.finish(TokenKind::Error);
                 }
 
                 self.accept_str_char(&mut str, '\\');
                 self.accept_str(&mut str);
 
                 if self.is_eof() || !self.accept_char('\'') {
-                    return self.finish(TokenVariant::Error);
+                    return self.finish(TokenKind::Error);
                 }
 
-                return self.finish_str(TokenVariant::LitChar, str);
+                return self.finish_str(TokenKind::LitChar, str);
             }
 
             // string literal
@@ -336,40 +335,40 @@ impl Lexer {
                     self.accept_str(&mut str);
 
                     if self.is_eof() {
-                        return self.finish(TokenVariant::Error);
+                        return self.finish(TokenKind::Error);
                     }
                 }
-                return self.finish_str(TokenVariant::LitString, str);
+                return self.finish_str(TokenKind::LitString, str);
             }
 
             if self.accept_str_pred(&mut str, dec) {
                 while self.accept_str_pred(&mut str, dec) {
                     if self.is_eof() {
-                        return self.finish(TokenVariant::Error);
+                        return self.finish(TokenKind::Error);
                     }
                 }
 
                 return if self.accept_str_char(&mut str, '.') {
                     while self.accept_str_pred(&mut str, dec) {
                         if self.is_eof() {
-                            return self.finish(TokenVariant::Error);
+                            return self.finish(TokenKind::Error);
                         }
                     }
 
-                    self.finish_str(TokenVariant::LitReal, str)
+                    self.finish_str(TokenKind::LitReal, str)
                 } else {
-                    self.finish_str(TokenVariant::LitInt, str)
+                    self.finish_str(TokenKind::LitInt, str)
                 }
             }
 
-            return self.finish(TokenVariant::Error);
+            return self.finish(TokenKind::Error);
         }
     }
 
-    pub fn new(source: Source, sym_table: Rc<SymTable>) -> Lexer {
+    pub fn new(source: Source, sym_table: Rc<RefCell<SymTable>>) -> Lexer {
         Lexer {
             token : Token{
-                variant: TokenVariant::Error,
+                kind: TokenKind::Error,
                 symbol: None,
                 loc: Loc {
                     file: String::new(),

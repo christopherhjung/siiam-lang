@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::cmp::max;
 use std::rc::{Rc, Weak};
-use crate::sym::{Sym, SymRef};
-use crate::{TokenVariant};
+use crate::sym::{Sym};
+use crate::{TokenKind};
 use crate::ast::Operator::Dec;
 
 #[derive(Debug)]
@@ -63,7 +63,7 @@ pub enum DeclKind{
 
 #[derive(Debug)]
 pub struct Ident {
-    pub sym: SymRef,
+    pub sym: Sym,
 }
 
 #[derive(Debug)]
@@ -75,7 +75,7 @@ pub enum ASTType {
 
 #[derive(Debug)]
 pub struct PrimASTType {
-    pub variant: TokenVariant,
+    pub variant: TokenKind,
 }
 #[derive(Debug)]
 pub struct SuperASTType {

@@ -1,36 +1,35 @@
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct Sym {
-    pub value: String
+    pub id: usize
 }
-
-impl Sym{
-    pub(crate) fn key(&self) -> *const Sym{
-        self as *const Sym
-    }
-}
-
-pub type SymRef = Rc<Sym>;
 
 pub struct SymTable {
-    map : HashMap<String, Rc<Sym>>
+    str : Vec<String>,
+    map : HashMap<String, Sym>
 }
 
 impl SymTable {
-    pub fn from( &mut self, str : String ) -> SymRef {
-        if let Some(rc) = self.map.get(&str){
-            rc.clone()
+    pub fn from( &mut self, str : String ) -> Sym {
+        if let Some(sym) = self.map.get(&str){
+            sym.clone()
         }else{
-            let rc = Rc::new(Sym{value: str.clone()});
-            self.map.insert(str, rc.clone());
-            rc
+            let sym = Sym{id: self.map.len()};
+            self.map.insert(str.clone(), sym);
+            self.str.push(str);
+            sym.clone()
         }
+    }
+
+    pub fn get(&self, sym: Sym ) -> String {
+        self.str[sym.id].clone()
     }
 
     pub fn new() -> SymTable{
         SymTable{
+            str : Vec::new(),
             map : HashMap::new()
         }
     }
