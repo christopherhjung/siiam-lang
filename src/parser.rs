@@ -144,6 +144,24 @@ impl Parser {
         })))
     }
 
+    fn prim_type(&mut self) -> PrimTy{
+        let ty = match self.kind() {
+            TokenKind::TypeBool => PrimTy::Bool,
+            TokenKind::TypeByte => PrimTy::Byte,
+            TokenKind::TypeChar => PrimTy::Char,
+            TokenKind::TypeStr => PrimTy::Str,
+            TokenKind::TypeInt => PrimTy::Int,
+            TokenKind::TypeLong => PrimTy::Long,
+            TokenKind::TypeFloat => PrimTy::Float,
+            TokenKind::TypeDouble => PrimTy::Double,
+            TokenKind::TypeUnit => PrimTy::Unit,
+            _ => unreachable!()
+        };
+
+        self.shift();
+        ty
+    }
+
     fn parse_type(&mut self) -> Box<Ty> {
         Box::new(match self.kind() {
             TokenKind::TypeBool |
@@ -155,21 +173,7 @@ impl Parser {
             TokenKind::TypeFloat |
             TokenKind::TypeDouble |
             TokenKind::TypeUnit => {
-                let ty = match self.kind() {
-                    TokenKind::TypeBool => PrimTy::Bool,
-                    TokenKind::TypeByte => PrimTy::Byte,
-                    TokenKind::TypeChar => PrimTy::Char,
-                    TokenKind::TypeStr => PrimTy::Str,
-                    TokenKind::TypeInt => PrimTy::Int,
-                    TokenKind::TypeLong => PrimTy::Long,
-                    TokenKind::TypeFloat => PrimTy::Float,
-                    TokenKind::TypeDouble => PrimTy::Double,
-                    TokenKind::TypeUnit => PrimTy::Unit,
-                    _ => unreachable!()
-                };
-
-                self.shift();
-                Ty::Prim(ty)
+                Ty::Prim(self.prim_type())
             }
             TokenKind::Identifier => {
                 let ident = self.parse_identifier();
