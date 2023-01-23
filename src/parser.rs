@@ -114,7 +114,7 @@ impl Parser {
         let ident = self.parse_identifier();
         self.expect(TokenKind::LParen);
         let params = self.parse_param_list();
-        let mut return_type : Option<Box<ASTType>> = None;
+        let mut return_type : Option<Box<Ty>> = None;
         if self.accept(TokenKind::Colon) {
             return_type = Some(self.parse_type());
         }
@@ -144,8 +144,8 @@ impl Parser {
         })))
     }
 
-    fn parse_type(&mut self) -> Box<ASTType> {
-        match self.kind() {
+    fn parse_type(&mut self) -> Box<Ty> {
+        Box::new(match self.kind() {
             TokenKind::TypeBool |
             TokenKind::TypeByte |
             TokenKind::TypeChar |
@@ -155,18 +155,27 @@ impl Parser {
             TokenKind::TypeFloat |
             TokenKind::TypeDouble |
             TokenKind::TypeUnit => {
-                let token = self.lex();
-                return Box::new(ASTType::Prim(PrimASTType {
-                    kind: token.kind
-                }));
+                let ty = match self.kind() {
+                    TokenKind::TypeBool => PrimTy::Bool,
+                    TokenKind::TypeByte => PrimTy::Byte,
+                    TokenKind::TypeChar => PrimTy::Char,
+                    TokenKind::TypeStr => PrimTy::Str,
+                    TokenKind::TypeInt => PrimTy::Int,
+                    TokenKind::TypeLong => PrimTy::Long,
+                    TokenKind::TypeFloat => PrimTy::Float,
+                    TokenKind::TypeDouble => PrimTy::Double,
+                    TokenKind::TypeUnit => PrimTy::Unit,
+                    _ => unreachable!()
+                };
+
+                self.shift();
+                Ty::Prim(ty)
             }
             TokenKind::Identifier => {
-                return Box::new(ASTType::Super(SuperASTType{
-                    ident_use: Box::new(IdentUse {
-                        ident: self.parse_identifier(),
-                        decl: None
-                    })
-                }));
+                let ident = self.parse_identifier();
+                Ty::Struct(StructTy {
+                    ident_use: Box::new(IdentUse::new(ident))
+                })
             }
             TokenKind::Fn => {
                 self.lex();
@@ -174,13 +183,13 @@ impl Parser {
                 let param_types = self.parse_type_list();
                 self.accept(TokenKind::Arrow);
                 let return_type = self.parse_type();
-                return Box::new(ASTType::Fn(FnASTType { param_types, return_type }));
+                Ty::Fn(FnTy { param_types, return_type })
             }
             _ => {
                 println!("unreachable:{:?}", self.kind());
                 unreachable!()
             }
-        }
+        })
     }
 
     fn parse_list<T>(&mut self, mut f: impl FnMut() -> Box<T>, separator: TokenKind, delimiter: TokenKind) -> Vec<Box<T>> {
@@ -483,7 +492,7 @@ impl Parser {
         return exprs;
     }
 
-    fn parse_type_list(&mut self) -> Vec<Box<ASTType>> {
+    fn parse_type_list(&mut self) -> Vec<Box<Ty>> {
         let mut types = Vec::new();
         while !self.accept(TokenKind::RParen) {
             if !types.is_empty() {

@@ -18,20 +18,20 @@ pub struct StructDecl {
 
 #[derive(Debug)]
 pub struct FieldDecl {
-    pub ast_type: Box<ASTType>,
+    pub ast_type: Box<Ty>,
     pub index: usize,
 }
 
 #[derive(Debug)]
 pub struct FnDecl {
     pub params: Vec<Box<Decl>>,
-    pub return_type: Option<Box<ASTType>>,
+    pub return_type: Option<Box<Ty>>,
     pub body: Box<Expr>,
 }
 
 #[derive(Debug)]
 pub struct LetDecl {
-    pub ast_type: Option<Box<ASTType>>,
+    pub ast_type: Option<Box<Ty>>,
 }
 
 #[derive(Debug)]
@@ -67,25 +67,34 @@ pub struct Ident {
 }
 
 #[derive(Debug)]
-pub enum ASTType {
-    Prim(PrimASTType),
-    Super(SuperASTType),
-    Fn(FnASTType),
+pub enum Ty {
+    Prim(PrimTy),
+    Struct(StructTy),
+    Fn(FnTy),
 }
 
 #[derive(Debug)]
-pub struct PrimASTType {
-    pub kind: TokenKind,
+pub enum PrimTy{
+    Str,
+    Unit,
+    Byte,
+    Char,
+    Int,
+    Long,
+    Float,
+    Double,
+    Bool
 }
+
 #[derive(Debug)]
-pub struct SuperASTType {
+pub struct StructTy {
     pub ident_use: Box<IdentUse>,
 }
 
 #[derive(Debug)]
-pub struct FnASTType {
-    pub param_types: Vec<Box<ASTType>>,
-    pub return_type: Box<ASTType>,
+pub struct FnTy {
+    pub param_types: Vec<Box<Ty>>,
+    pub return_type: Box<Ty>,
 }
 
 #[derive(Debug)]
