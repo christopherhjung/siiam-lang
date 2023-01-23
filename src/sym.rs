@@ -7,30 +7,30 @@ pub struct Sym {
 }
 
 pub struct SymTable {
-    str : Vec<String>,
-    map : HashMap<String, Sym>
+    id2str: Vec<String>,
+    str2sym: HashMap<String, Sym>
 }
 
 impl SymTable {
     pub fn from( &mut self, str : String ) -> Sym {
-        if let Some(sym) = self.map.get(&str){
+        if let Some(sym) = self.str2sym.get(&str){
             sym.clone()
         }else{
-            let sym = Sym{id: self.map.len()};
-            self.map.insert(str.clone(), sym);
-            self.str.push(str);
+            let sym = Sym{id: self.str2sym.len()};
+            self.str2sym.insert(str.clone(), sym);
+            self.id2str.push(str);
             sym.clone()
         }
     }
 
     pub fn get(&self, sym: Sym ) -> String {
-        self.str[sym.id].clone()
+        self.id2str[sym.id].clone()
     }
 
     pub fn new() -> SymTable{
         SymTable{
-            str : Vec::new(),
-            map : HashMap::new()
+            id2str: Vec::new(),
+            str2sym: HashMap::new()
         }
     }
 }

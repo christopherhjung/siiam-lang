@@ -31,7 +31,7 @@ impl Parser {
         return result;
     }
 
-    fn variant(&mut self) -> TokenKind {
+    fn kind(&mut self) -> TokenKind {
         self.lookahead().kind
     }
 
@@ -47,12 +47,12 @@ impl Parser {
         assert!(i < LOOKAHEAD_SIZE, "lookahead overflow!");
         return &mut self.lookahead[(i + self.lookahead_idx) % LOOKAHEAD_SIZE];
     }
-    fn check(&mut self, variant: TokenKind) -> bool {
-        variant == self.variant()
+    fn check_kind(&mut self, kind: TokenKind) -> bool {
+        kind == self.kind()
     }
 
-    fn accept(&mut self, variant: TokenKind) -> bool {
-        if variant == self.variant() {
+    fn accept(&mut self, kind: TokenKind) -> bool {
+        if kind == self.kind() {
             self.shift();
             return true;
         }
@@ -60,20 +60,20 @@ impl Parser {
         return false;
     }
 
-    fn follow(&mut self, variant: TokenKind) -> bool {
+    fn follow(&mut self, kind: TokenKind) -> bool {
         if self.enter(TokenEnter::Token) {
-            return self.accept(variant);
+            return self.accept(kind);
         }
 
         return false;
     }
 
-    fn expect(&mut self, variant: TokenKind) {
-        assert!(self.accept(variant), "Variants do not match!");
+    fn expect(&mut self, kind: TokenKind) {
+        assert!(self.accept(kind), "Kinds do not match!");
     }
 
     fn expect_enter(&mut self, enter: TokenEnter) {
-        assert_eq!(self.lookahead().enter, enter, "Variants do not match!");
+        assert_eq!(self.lookahead().enter, enter, "Kinds do not match!");
     }
 
     pub fn parse_module(&mut self) -> Box<Module> {
@@ -86,7 +86,7 @@ impl Parser {
 
 
     fn parse_item(&mut self) -> Box<Decl> {
-        return match self.variant() {
+        return match self.kind() {
             TokenKind::Fn => self.parse_fn(),
             TokenKind::Struct => self.parse_struct(),
             _ => unreachable!()
@@ -94,7 +94,7 @@ impl Parser {
     }
 
     fn parse_identifier(&mut self) -> Box<Ident> {
-        assert!(self.check(TokenKind::Identifier));
+        assert!(self.check_kind(TokenKind::Identifier));
         let sym = self.lex().symbol.unwrap();
         let ident = Ident { sym };
         return Box::new(ident);
@@ -145,11 +145,11 @@ impl Parser {
     }
 
     fn parse_type(&mut self) -> Box<ASTType> {
-        match self.variant() {
+        match self.kind() {
             TokenKind::TypeBool |
             TokenKind::TypeByte |
             TokenKind::TypeChar |
-            TokenKind::TypeString |
+            TokenKind::TypeStr |
             TokenKind::TypeInt |
             TokenKind::TypeLong |
             TokenKind::TypeFloat |
@@ -157,7 +157,7 @@ impl Parser {
             TokenKind::TypeUnit => {
                 let token = self.lex();
                 return Box::new(ASTType::Prim(PrimASTType {
-                    variant: token.kind
+                    kind: token.kind
                 }));
             }
             TokenKind::Identifier => {
@@ -177,7 +177,7 @@ impl Parser {
                 return Box::new(ASTType::Fn(FnASTType { param_types, return_type }));
             }
             _ => {
-                println!("unreachable:{:?}", self.variant());
+                println!("unreachable:{:?}", self.kind());
                 unreachable!()
             }
         }
@@ -290,10 +290,10 @@ impl Parser {
     }
 
     fn parse_primary_expr(&mut self) -> Box<Expr> {
-        match self.variant() {
+        match self.kind() {
             TokenKind::LitInt |
             TokenKind::LitReal    |
-            TokenKind::LitString  |
+            TokenKind::LitStr |
             TokenKind::LitChar    |
             TokenKind::LitBool => Box::new(Expr::Literal(self.parse_literal())),
             TokenKind::Identifier => Box::new(Expr::Ident(IdentExpr { ident_use: Box::new(IdentUse::new(self.parse_identifier())) })),
@@ -373,7 +373,7 @@ impl Parser {
         {
             TokenKind::LitReal => Literal::Real(str.parse::<f64>().unwrap()),
             TokenKind::LitInt => Literal::Int(str.parse::<i64>().unwrap()),
-            TokenKind::LitString => Literal::String(str.clone()),
+            TokenKind::LitStr => Literal::Str(str),
             TokenKind::LitChar => Literal::Char(str.chars().next().unwrap()),
             TokenKind::LitBool => Literal::Bool(str == "true"),
             _ => unreachable!()
@@ -387,9 +387,9 @@ impl Parser {
     }
 
     fn parse_stmts(&mut self) -> Box<Stmt>{
-        match self.variant() {
+        match self.kind() {
             TokenKind::Let => self.parse_decl(),
-            _=> Box::new(Stmt::Expr(ExprStmt{ expr: self.parse_expr() }))
+            _ => Box::new(Stmt::Expr(ExprStmt{ expr: self.parse_expr() }))
         }
     }
 
@@ -397,7 +397,7 @@ impl Parser {
     fn parse_if(&mut self) -> Box<Expr>{
         self.expect(TokenKind::If);
         let condition = self.parse_expr();
-        self.check(TokenKind::LBrace);
+        self.check_kind(TokenKind::LBrace);
         let if_branch = self.parse_block();
 
         let mut else_branch : Option<Box<Expr>> = None;

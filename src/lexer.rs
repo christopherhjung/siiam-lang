@@ -77,9 +77,9 @@ pub enum TokenKind {
     Return,
     Let, Fn, Struct,
 
-    LitString, LitChar,
+    LitStr, LitChar,
     LitInt, LitReal, LitBool,
-    TypeString, TypeUnit, TypeByte, TypeChar, TypeInt, TypeLong, TypeFloat, TypeDouble, TypeBool,
+    TypeStr, TypeUnit, TypeByte, TypeChar, TypeInt, TypeLong, TypeFloat, TypeDouble, TypeBool,
 
     NL,
     Error,
@@ -98,7 +98,7 @@ impl TokenKind {
             TokenKind::Let =>  "let",
             TokenKind::Fn =>  "fn",
             TokenKind::Return =>  "return",
-            TokenKind::TypeString =>  "String",
+            TokenKind::TypeStr =>  "String",
             TokenKind::TypeChar =>  "char",
             TokenKind::TypeBool =>  "bool",
             TokenKind::TypeByte =>  "i8",
@@ -170,7 +170,7 @@ impl Lexer {
                 }
             }
         }
-        let mut sym_table = self.sym_table.borrow_mut();
+        let mut sym_table = RefCell::borrow_mut(&self.sym_table);
         self.token.symbol = Some(sym_table.from(str));
     }
 
@@ -338,7 +338,7 @@ impl Lexer {
                         return self.finish(TokenKind::Error);
                     }
                 }
-                return self.finish_str(TokenKind::LitString, str);
+                return self.finish_str(TokenKind::LitStr, str);
             }
 
             if self.accept_str_pred(&mut str, dec) {

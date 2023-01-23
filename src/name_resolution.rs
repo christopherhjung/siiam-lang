@@ -21,7 +21,7 @@ impl NameResolution {
     pub fn pop_scope(&mut self){
         let last_level = *self.levels.last().unwrap();
 
-        for i in last_level .. self.decls.len(){
+        for _ in last_level .. self.decls.len(){
             let last_decl_ref = self.decls.pop().unwrap();
             let mut last_decl = unsafe { &*last_decl_ref };
 
@@ -91,11 +91,8 @@ impl Visitor for NameResolution{
     }
 
     fn visit_ident_expr(&mut self, ident_expr: &mut IdentExpr) {
-
         let ident_use = &mut ident_expr.ident_use;
         let decl = self.lookup(ident_use.ident.sym);
         ident_use.decl = decl;
-        //println!("{:#?}", decl);
-        //println!("{:#?}", ident_expr);
     }
 }

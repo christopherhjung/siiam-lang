@@ -75,7 +75,7 @@ pub enum ASTType {
 
 #[derive(Debug)]
 pub struct PrimASTType {
-    pub variant: TokenKind,
+    pub kind: TokenKind,
 }
 #[derive(Debug)]
 pub struct SuperASTType {
@@ -155,7 +155,7 @@ pub struct IdentExpr {
 
 #[derive(Debug)]
 pub enum Literal {
-    String(String),
+    Str(String),
     Char(char),
     Int(i64),
     Real(f64),
