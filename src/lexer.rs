@@ -85,7 +85,7 @@ pub enum TokenKind {
     Error,
     Eof,
     Num,
-    Identifier
+    Ident
 }
 
 impl TokenKind {
@@ -161,7 +161,7 @@ impl Lexer {
 
     fn finish_str(&mut self, kind: TokenKind, str: String) {
         self.token.kind = kind;
-        if kind == TokenKind::Identifier {
+        if kind == TokenKind::Ident {
             for elem in TokenKind::iter(){
                 if elem.keyword() == str{
                     self.token.kind = elem;
@@ -309,7 +309,7 @@ impl Lexer {
                 if str == "true" || str == "false" {
                     return self.finish_str(TokenKind::LitBool, str);
                 }
-                return self.finish_str(TokenKind::Identifier, str);
+                return self.finish_str(TokenKind::Ident, str);
             }
 
             // char literal

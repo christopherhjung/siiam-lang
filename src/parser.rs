@@ -93,25 +93,23 @@ impl Parser {
         }
     }
 
-    fn parse_identifier(&mut self) -> Box<Ident> {
-        assert!(self.check_kind(TokenKind::Identifier));
+    fn parse_ident(&mut self) -> Box<Ident> {
+        assert!(self.check_kind(TokenKind::Ident));
         let sym = self.lex().symbol.unwrap();
-        let ident = Ident { sym };
-        return Box::new(ident);
+        return Box::new(Ident { sym });
     }
 
     fn parse_struct(&mut self) -> Box<Decl> {
         self.expect(TokenKind::Struct);
-        let ident = self.parse_identifier();
+        let ident = self.parse_ident();
         self.expect(TokenKind::LBrace);
         let fields = self.parse_field_list();
         Box::new(Decl::new(ident, DeclKind::StructDecl(StructDecl{ fields })))
     }
 
-
     fn parse_fn(&mut self) -> Box<Decl> {
         self.expect(TokenKind::Fn);
-        let ident = self.parse_identifier();
+        let ident = self.parse_ident();
         self.expect(TokenKind::LParen);
         let params = self.parse_param_list();
         let mut return_type : Option<Box<Ty>> = None;
@@ -135,7 +133,7 @@ impl Parser {
     }
 
     fn parse_field(&mut self, i: usize) -> Box<Decl> {
-        let ident = self.parse_identifier();
+        let ident = self.parse_ident();
         self.accept(TokenKind::Colon);
 
         Box::new(Decl::new(ident, DeclKind::FieldDecl(FieldDecl{
@@ -175,8 +173,8 @@ impl Parser {
             TokenKind::TypeUnit => {
                 Ty::Prim(self.prim_type())
             }
-            TokenKind::Identifier => {
-                let ident = self.parse_identifier();
+            TokenKind::Ident => {
+                let ident = self.parse_ident();
                 Ty::Struct(StructTy {
                     ident_use: Box::new(IdentUse::new(ident))
                 })
@@ -309,7 +307,7 @@ impl Parser {
             TokenKind::LitStr |
             TokenKind::LitChar    |
             TokenKind::LitBool => Box::new(Expr::Literal(self.parse_literal())),
-            TokenKind::Identifier => Box::new(Expr::Ident(IdentExpr { ident_use: Box::new(IdentUse::new(self.parse_identifier())) })),
+            TokenKind::Ident => Box::new(Expr::Ident(IdentExpr { ident_use: Box::new(IdentUse::new(self.parse_ident())) })),
             TokenKind::LParen => {
                 self.lex();
                 let expr = self.parse_expr();
@@ -333,7 +331,7 @@ impl Parser {
             Operator::LeftParen => Box::new(Expr::FnCall(FnCallExpr{ callee: lhs, args: self.parse_expr_list(TokenKind::Comma, TokenKind::RParen) })),
             Operator::Dot => Box::new(Expr::Field(FieldExpr{
                 target_: lhs,
-                identifier_: Box::new(IdentUse::new(self.parse_identifier()) ),
+                identifier_: Box::new(IdentUse::new(self.parse_ident()) ),
                 index_: 0
             })),
             _ => unreachable!()
@@ -423,7 +421,7 @@ impl Parser {
 
     fn parse_decl(&mut self) -> Box<Stmt>{
         self.accept(TokenKind::Let);
-        let ident = self.parse_identifier();
+        let ident = self.parse_ident();
 
         let mut ast_type = None;
         if self.accept(TokenKind::Colon) {
@@ -466,7 +464,7 @@ impl Parser {
     }
 
     fn parse_param(&mut self) -> Box<Decl>{
-        let ident = self.parse_identifier();
+        let ident = self.parse_ident();
         self.accept(TokenKind::Colon);
 
         Box::new(Decl::new(ident, DeclKind::LetDecl(LetDecl {
