@@ -205,107 +205,107 @@ impl Parser {
         return exprs;
     }
 
-    fn parse_operator(&mut self) -> Option<Operator> {
+    fn parse_operator(&mut self) -> Option<Op> {
         Some(if self.accept(TokenKind::Plus) {
             //+, ++, +=
             if self.follow(TokenKind::Plus) {
-                Operator::Inc
+                Op::Inc
             } else if self.follow(TokenKind::Assign) {
-                Operator::Assign
+                Op::Assign
             } else {
-                Operator::Add
+                Op::Add
             }
         } else if self.accept(TokenKind::Minus) {
             // -, --, -=, ->
             if self.follow(TokenKind::Minus) {
-                Operator::Dec
+                Op::Dec
             } else if self.follow(TokenKind::RAngle) {
-                Operator::Arrow
+                Op::Arrow
             } else if self.follow(TokenKind::Assign) {
-                Operator::SubAssign
+                Op::SubAssign
             } else {
-                Operator::Sub
+                Op::Sub
             }
         } else if self.accept(TokenKind::Star) {
             // *, *=
             if self.follow(TokenKind::Assign) {
-                Operator::MulAssign
+                Op::MulAssign
             } else {
-                Operator::Mul
+                Op::Mul
             }
         } else if self.accept(TokenKind::Slash) {
             // /, /=
             if self.follow(TokenKind::Assign) {
-                Operator::DivAssign
+                Op::DivAssign
             } else {
-                Operator::Div
+                Op::Div
             }
         } else if self.accept(TokenKind::LAngle) {
             // <, <=, <<
             if self.follow(TokenKind::Assign) {
-                Operator::Le
+                Op::Le
             } else if self.follow(TokenKind::LAngle) {
-                Operator::Shl
+                Op::Shl
             } else {
-                Operator::Lt
+                Op::Lt
             }
         } else if self.accept(TokenKind::RAngle) {
             // >, >=, >>
             if self.follow(TokenKind::Assign) {
-                Operator::Ge
+                Op::Ge
             } else if self.follow(TokenKind::RAngle) {
-                Operator::Shr
+                Op::Shr
             } else {
-                Operator::Gt
+                Op::Gt
             }
         } else if self.accept(TokenKind::Assign) {
             //=, ==
             if self.follow(TokenKind::Assign) {
-                Operator::Eq
+                Op::Eq
             } else {
-                Operator::Assign
+                Op::Assign
             }
         } else if self.accept(TokenKind::Not) {
             // !=, !
             if self.follow(TokenKind::Assign) {
-                Operator::Ne
+                Op::Ne
             } else {
-                Operator::Not
+                Op::Not
             }
         } else if self.accept(TokenKind::Or) {
             //||, |
             if self.follow(TokenKind::Or) {
-                Operator::OrOr
+                Op::Or
             } else {
-                Operator::Or
+                Op::BitOr
             }
         } else if self.accept(TokenKind::And) {
             //&&, &
             if self.follow(TokenKind::And) {
-                Operator::AndAnd
+                Op::And
             } else {
-                Operator::And
+                Op::BitAnd
             }
         } else if self.accept(TokenKind::LBracket) {
-            Operator::LeftBracket
+            Op::LeftBracket
         } else if self.accept(TokenKind::LParen) {
-            Operator::LeftParen
+            Op::LeftParen
         } else {
             return None;
         })
     }
 
-    fn parse_prefix_expr(&mut self, op: Operator) -> Box<Expr> {
+    fn parse_prefix_expr(&mut self, op: Op) -> Box<Expr> {
         let expr = self.parse_expr_prec(op.prec());
         Box::new(Expr::Prefix(PrefixExpr { expr, op }))
     }
 
     fn parse_primary_expr(&mut self) -> Box<Expr> {
         match self.kind() {
-            TokenKind::LitInt |
-            TokenKind::LitReal    |
-            TokenKind::LitStr |
-            TokenKind::LitChar    |
+            TokenKind::LitInt  |
+            TokenKind::LitReal |
+            TokenKind::LitStr  |
+            TokenKind::LitChar |
             TokenKind::LitBool => Box::new(Expr::Literal(self.parse_literal())),
             TokenKind::Ident => Box::new(Expr::Ident(IdentExpr { ident_use: Box::new(IdentUse::new(self.parse_ident())) })),
             TokenKind::LParen => {
@@ -319,17 +319,17 @@ impl Parser {
         }
     }
 
-    fn parse_infix_expr(&mut self, lhs: Box<Expr>, op: Operator) -> Box<Expr> {
+    fn parse_infix_expr(&mut self, lhs: Box<Expr>, op: Op) -> Box<Expr> {
         let rhs = self.parse_expr_prec(op.prec().next());
         Box::new(Expr::Infix(InfixExpr { lhs, rhs, op }))
     }
 
-    fn parse_postfix_expr(&mut self, lhs: Box<Expr>, op : Operator) -> Box<Expr> {
+    fn parse_postfix_expr(&mut self, lhs: Box<Expr>, op : Op) -> Box<Expr> {
         match op {
-            Operator::Inc |
-            Operator::Dec => Box::new(Expr::Postfix(PostfixExpr { expr: lhs, op })),
-            Operator::LeftParen => Box::new(Expr::FnCall(FnCallExpr{ callee: lhs, args: self.parse_expr_list(TokenKind::Comma, TokenKind::RParen) })),
-            Operator::Dot => Box::new(Expr::Field(FieldExpr{
+            Op::Inc |
+            Op::Dec => Box::new(Expr::Postfix(PostfixExpr { expr: lhs, op })),
+            Op::LeftParen => Box::new(Expr::FnCall(FnCallExpr{ callee: lhs, args: self.parse_expr_list(TokenKind::Comma, TokenKind::RParen) })),
+            Op::Dot => Box::new(Expr::Field(FieldExpr{
                 target_: lhs,
                 identifier_: Box::new(IdentUse::new(self.parse_ident()) ),
                 index_: 0
@@ -337,7 +337,6 @@ impl Parser {
             _ => unreachable!()
         }
     }
-
 
     fn parse_expr_prec(&mut self, prec: Prec) -> Box<Expr> {
         let mut lhs = match self.parse_operator() {

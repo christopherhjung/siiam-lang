@@ -3,7 +3,7 @@ use std::cmp::max;
 use std::rc::{Rc, Weak};
 use crate::sym::{Sym};
 use crate::{TokenKind};
-use crate::ast::Operator::Dec;
+use crate::ast::Op::Dec;
 
 #[derive(Debug)]
 pub struct Module {
@@ -129,20 +129,20 @@ pub struct Block {
 #[derive(Debug)]
 pub struct PrefixExpr {
     pub expr: Box<Expr>,
-    pub op: Operator,
+    pub op: Op,
 }
 
 #[derive(Debug)]
 pub struct PostfixExpr {
     pub expr: Box<Expr>,
-    pub op: Operator,
+    pub op: Op,
 }
 
 #[derive(Debug)]
 pub struct InfixExpr {
     pub lhs: Box<Expr>,
     pub rhs: Box<Expr>,
-    pub op: Operator,
+    pub op: Op,
 }
 
 #[derive(Debug)]
@@ -205,20 +205,20 @@ pub struct WhileExpr {
 }
 
 #[derive(Debug)]
-pub enum Operator {
+pub enum Op {
     Assign,
     AddAssign,
     SubAssign,
     MulAssign,
     DivAssign,
 
-    OrOr,
-    AndAnd,
+    Or,
+    And,
     Eq,
     Ne,
-    Or,
-    Xor,
-    And,
+    BitOr,
+    BitXor,
+    BitAnd,
     Shl,
     Shr,
     Add,
@@ -237,23 +237,19 @@ pub enum Operator {
     Arrow,
     Dot,
     LeftParen,
-    RightParen,
     LeftBracket,
-    RightBracket,
-    LeftBrace,
-    RightBrace,
 }
 
 #[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
 pub enum Prec {
     Bottom,
     Assign,
-    OrOr,
-    AndAnd,
-    Rel,
     Or,
-    Xor,
     And,
+    Rel,
+    BitOr,
+    BitXor,
+    BitAnd,
     Shift,
     Add,
     Mul,
@@ -266,12 +262,12 @@ impl Prec {
     pub fn next(&self) -> Prec {
         match self {
             Prec::Bottom => Prec::Assign,
-            Prec::Assign => Prec::OrOr,
-            Prec::OrOr => Prec::AndAnd,
-            Prec::AndAnd => Prec::Or,
-            Prec::Or => Prec::Xor,
-            Prec::Xor => Prec::And,
-            Prec::And => Prec::Shift,
+            Prec::Assign => Prec::Or,
+            Prec::Or => Prec::And,
+            Prec::And => Prec::BitOr,
+            Prec::BitOr => Prec::BitXor,
+            Prec::BitXor => Prec::BitAnd,
+            Prec::BitAnd => Prec::Shift,
             Prec::Shift => Prec::Add,
             Prec::Add => Prec::Mul,
             Prec::Mul => Prec::As,
@@ -282,59 +278,59 @@ impl Prec {
     }
 }
 
-impl Operator {
+impl Op {
     pub fn is_postfix(&self) -> bool {
         return match self {
-            Operator::Inc |
-            Operator::Dec |
-            Operator::LeftBracket |
-            Operator::LeftParen |
-            Operator::Dot => true,
+            Op::Inc |
+            Op::Dec |
+            Op::LeftBracket |
+            Op::LeftParen |
+            Op::Dot => true,
             _ => false
         };
     }
 
     pub fn is_prefix(&self) -> bool {
         return match self {
-            Operator::Add |
-            Operator::Sub |
-            Operator::Inc |
-            Operator::Dec |
-            Operator::Not => true,
+            Op::Add |
+            Op::Sub |
+            Op::Inc |
+            Op::Dec |
+            Op::Not => true,
             _ => false
         };
     }
 
     pub fn is_infix(&self) -> bool {
         return match self {
-            Operator::OrOr |
-            Operator::AndAnd |
-            Operator::Assign |
-            Operator::Eq |
-            Operator::Ne |
-            Operator::Lt |
-            Operator::Le |
-            Operator::Gt |
-            Operator::Ge |
-            Operator::Add |
-            Operator::Sub |
-            Operator::Mul |
-            Operator::Div => true,
+            Op::Or |
+            Op::And |
+            Op::Assign |
+            Op::Eq |
+            Op::Ne |
+            Op::Lt |
+            Op::Le |
+            Op::Gt |
+            Op::Ge |
+            Op::Add |
+            Op::Sub |
+            Op::Mul |
+            Op::Div => true,
             _ => false
         };
     }
 
     pub fn prec(&self) -> Prec {
         match self {
-            Operator::OrOr => Prec::OrOr,
-            Operator::AndAnd => Prec::AndAnd,
-            Operator::Eq | Operator::Ne => Prec::Rel,
-            Operator::Or => Prec::Or,
-            Operator::Xor => Prec::Xor,
-            Operator::And => Prec::Add,
-            Operator::Shl | Operator::Shr => Prec::Shift,
-            Operator::Add | Operator::Sub => Prec::Add,
-            Operator::Mul | Operator::Div | Operator::Rem => Prec::Mul,
+            Op::Or => Prec::Or,
+            Op::And => Prec::And,
+            Op::Eq | Op::Ne => Prec::Rel,
+            Op::BitOr => Prec::BitOr,
+            Op::BitXor => Prec::BitXor,
+            Op::BitAnd => Prec::Add,
+            Op::Shl | Op::Shr => Prec::Shift,
+            Op::Add | Op::Sub => Prec::Add,
+            Op::Mul | Op::Div | Op::Rem => Prec::Mul,
             _ => Prec::Bottom
         }
     }

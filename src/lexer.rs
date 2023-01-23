@@ -118,13 +118,6 @@ pub enum TokenEnter {
     Token, Space, NL
 }
 
-/*
-impl Clone for Sym {
-    fn clone(&self) -> Self {
-        Sym::new(self.value.clone())
-    }
-}*/
-
 #[inline(always)]
 fn range(c: char, low: char, high: char) -> bool { return low <= c && c <= high; }
 fn sym(c : char) -> bool { return  range(c, 'a', 'z') || range(c, 'A', 'Z') || c == '_'; }
@@ -142,7 +135,7 @@ impl Lexer {
         self.source.next()
     }
 
-    fn identifier(&mut self, str : &mut String) -> bool{
+    fn ident(&mut self, str : &mut String) -> bool{
         if self.accept_str_pred(str, sym) {
             while self.accept_str_pred(str, sym) || self.accept_str_pred(str, dec) {}
             return true;
@@ -170,6 +163,11 @@ impl Lexer {
                 }
             }
         }
+
+        self.finish_str_unchecked(kind, str)
+    }
+
+    fn finish_str_unchecked(&mut self, kind: TokenKind, str: String) {
         let mut sym_table = RefCell::borrow_mut(&self.sym_table);
         self.token.symbol = Some(sym_table.from(str));
     }
@@ -305,9 +303,9 @@ impl Lexer {
             let mut str = String::new();
 
             // identifiers/keywords
-            if self.identifier(&mut str) {
+            if self.ident(&mut str) {
                 if str == "true" || str == "false" {
-                    return self.finish_str(TokenKind::LitBool, str);
+                    return self.finish_str_unchecked(TokenKind::LitBool, str);
                 }
                 return self.finish_str(TokenKind::Ident, str);
             }
