@@ -1,12 +1,13 @@
 use std::cell::RefCell;
 use std::process::id;
 use std::rc::Rc;
+
 use sha2::digest::generic_array::typenum::Exp;
 
-use crate::{Lexer, SymTable, TokenKind};
-use crate::sym::{Sym};
-use crate::lexer::{Token, TokenEnter};
+use crate::{Lexer, SymTable};
 use crate::ast::*;
+use crate::sym::Sym;
+use crate::token::*;
 
 const LOOKAHEAD_SIZE: usize = 3;
 
@@ -112,7 +113,7 @@ impl Parser {
         let ident = self.parse_ident();
         self.expect(TokenKind::LParen);
         let params = self.parse_param_list();
-        let mut return_type : Option<Box<Ty>> = None;
+        let mut return_type : Option<Box<ASTTy>> = None;
         if self.accept(TokenKind::Colon) {
             return_type = Some(self.parse_type());
         }
@@ -160,7 +161,7 @@ impl Parser {
         ty
     }
 
-    fn parse_type(&mut self) -> Box<Ty> {
+    fn parse_type(&mut self) -> Box<ASTTy> {
         Box::new(match self.kind() {
             TokenKind::TypeBool |
             TokenKind::TypeByte |
@@ -171,11 +172,11 @@ impl Parser {
             TokenKind::TypeFloat |
             TokenKind::TypeDouble |
             TokenKind::TypeUnit => {
-                Ty::Prim(self.prim_type())
+                ASTTy::Prim(self.prim_type())
             }
             TokenKind::Ident => {
                 let ident = self.parse_ident();
-                Ty::Struct(StructTy {
+                ASTTy::Struct(StructTy {
                     ident_use: Box::new(IdentUse::new(ident))
                 })
             }
@@ -185,9 +186,9 @@ impl Parser {
                 let param_types = self.parse_type_list();
                 self.accept(TokenKind::Arrow);
                 let return_type = self.parse_type();
-                Ty::Fn(FnTy { param_types, return_type })
+                ASTTy::Fn(FnTy { param_types, return_type })
             }
-            _ => Ty::Err
+            _ => ASTTy::Err
         })
     }
 
@@ -490,7 +491,7 @@ impl Parser {
         return exprs;
     }
 
-    fn parse_type_list(&mut self) -> Vec<Box<Ty>> {
+    fn parse_type_list(&mut self) -> Vec<Box<ASTTy>> {
         let mut types = Vec::new();
         while !self.accept(TokenKind::RParen) {
             if !types.is_empty() {

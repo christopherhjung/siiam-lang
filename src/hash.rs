@@ -1,9 +1,8 @@
-
-use std::ptr::eq;
-use std::time::{Duration, Instant};
 use hex::ToHex;
 use rand::{distributions::Alphanumeric, Rng};
-use sha2::{Sha256, Sha512, Sha384, Digest};
+use sha2::{Digest, Sha256, Sha384, Sha512};
+use std::ptr::eq;
+use std::time::{Duration, Instant};
 
 pub struct Hash{
     pub data : [u8; 32]

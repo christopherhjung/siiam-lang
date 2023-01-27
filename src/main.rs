@@ -4,10 +4,11 @@ use std::borrow::BorrowMut;
 use std::cell::{Cell, RefCell};
 use std::ptr;
 use std::rc::Rc;
-use crate::ast::{ Decl, Module};
-use crate::lexer::{Lexer, TokenKind};
+
+use crate::ast::{Decl, Module};
+use crate::bind::NameBinder;
+use crate::lexer::Lexer;
 use crate::parser::Parser;
-use crate::bind::{NameBinder};
 use crate::source::Source;
 use crate::sym::*;
 
@@ -18,6 +19,8 @@ mod bind;
 mod ast;
 mod sym;
 mod visitor;
+mod sema;
+mod token;
 
 struct B{
     test : i32

@@ -1,10 +1,12 @@
 use std::cell::RefCell;
 use std::cmp::max;
 use std::rc::{Rc, Weak};
-use crate::sym::{Sym};
-//use crate::sema::{TyRef};
-use crate::{TokenKind};
+
+use strum_macros::EnumIter;
+
 use crate::ast::Op::Dec;
+use crate::sema::*;
+use crate::sym::Sym;
 
 #[derive(Debug)]
 pub struct Module {
@@ -18,20 +20,20 @@ pub struct StructDecl {
 
 #[derive(Debug)]
 pub struct MemberDecl {
-    pub ast_type: Box<Ty>,
+    pub ast_type: Box<ASTTy>,
     pub index: usize,
 }
 
 #[derive(Debug)]
 pub struct FnDecl {
     pub params: Vec<Box<Decl>>,
-    pub return_type: Option<Box<Ty>>,
+    pub return_type: Option<Box<ASTTy>>,
     pub body: Box<Expr>,
 }
 
 #[derive(Debug)]
 pub struct LetDecl {
-    pub ast_type: Option<Box<Ty>>,
+    pub ast_type: Option<Box<ASTTy>>,
 }
 
 #[derive(Debug)]
@@ -39,6 +41,7 @@ pub struct Decl{
     pub ident: Box<Ident>,
     pub shadows: Option<*const Decl>,
     pub depth: usize,
+    pub ty: Option<Rc<Ty>>,
     pub kind : DeclKind
 }
 
@@ -48,6 +51,7 @@ impl Decl{
              ident,
              shadows: None,
              depth: 0,
+             ty: None,
              kind
          }
     }
@@ -67,14 +71,14 @@ pub struct Ident {
 }
 
 #[derive(Debug)]
-pub enum Ty {
+pub enum ASTTy {
     Prim(PrimTy),
     Struct(StructTy),
     Fn(FnTy),
     Err
 }
 
-#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy, EnumIter)]
 pub enum PrimTy{
     Str,
     Unit,
@@ -94,8 +98,8 @@ pub struct StructTy {
 
 #[derive(Debug)]
 pub struct FnTy {
-    pub param_types: Vec<Box<Ty>>,
-    pub return_type: Box<Ty>,
+    pub param_types: Vec<Box<ASTTy>>,
+    pub return_type: Box<ASTTy>,
 }
 
 #[derive(Debug)]
@@ -125,13 +129,15 @@ pub enum ExprKind {
 
 #[derive(Debug)]
 pub struct Expr {
-    pub kind: ExprKind
+    pub kind: ExprKind,
+    pub ty: Option<Rc<Ty>>,
 }
 
 impl Expr{
     pub fn new( kind: ExprKind ) -> Expr{
         Expr{
-            kind
+            kind,
+            ty: None
         }
     }
 }

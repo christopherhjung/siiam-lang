@@ -2,10 +2,11 @@ use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
+
 use crate::ast::*;
-use crate::visitor::Visitor;
 use crate::Module;
-use crate::sym::{Sym};
+use crate::sym::Sym;
+use crate::visitor::Visitor;
 
 pub struct NameBinder {
     levels : Vec<usize>,

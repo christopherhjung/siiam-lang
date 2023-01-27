@@ -1,8 +1,8 @@
-
-use std::io::{BufRead, BufReader, Read};
 use std::fs::File;
+use std::io::{BufRead, BufReader, Read};
 use std::ops::Add;
-use crate::lexer::{Loc, Pos};
+
+use crate::token::{Loc, Pos};
 
 pub struct Source{
     reader : BufReader<File>,
