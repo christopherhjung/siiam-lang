@@ -142,8 +142,7 @@ impl Lexer {
         self.token.symbol = None;
     }
 
-    fn finish_str(&mut self, kind: TokenKind, str: String) {
-        self.token.kind = kind;
+    fn finish_ident(&mut self, str: String) {
         if kind == TokenKind::Ident {
             for elem in TokenKind::iter(){
                 if elem.keyword() == str{
@@ -154,11 +153,12 @@ impl Lexer {
             }
         }
 
-        self.finish_str_unchecked(kind, str)
+        self.finish_str(TokenKind::Ident, str)
     }
 
-    fn finish_str_unchecked(&mut self, kind: TokenKind, str: String) {
+    fn finish_str(&mut self, kind: TokenKind, str: String) {
         let mut sym_table = RefCell::borrow_mut(&self.sym_table);
+        self.token.kind = kind;
         self.token.symbol = Some(sym_table.from(str));
     }
 
@@ -295,9 +295,9 @@ impl Lexer {
             // identifiers/keywords
             if self.ident(&mut str) {
                 if str == "true" || str == "false" {
-                    return self.finish_str_unchecked(TokenKind::LitBool, str);
+                    return self.finish_str(TokenKind::LitBool, str);
                 }
-                return self.finish_str(TokenKind::Ident, str);
+                return self.finish_ident(str);
             }
 
             // char literal
