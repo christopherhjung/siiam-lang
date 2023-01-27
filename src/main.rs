@@ -1,3 +1,5 @@
+#![feature(hash_set_entry)]
+
 use std::borrow::BorrowMut;
 use std::cell::{Cell, RefCell};
 use std::ptr;
@@ -5,18 +7,17 @@ use std::rc::Rc;
 use crate::ast::{ Decl, Module};
 use crate::lexer::{Lexer, TokenKind};
 use crate::parser::Parser;
-use crate::name_res::{NameRes};
+use crate::bind::{NameBinder};
 use crate::source::Source;
 use crate::sym::*;
 
 mod lexer;
 mod source;
 mod parser;
-mod name_res;
+mod bind;
 mod ast;
 mod sym;
 mod visitor;
-mod sema;
 
 struct B{
     test : i32
@@ -34,12 +35,17 @@ pub fn main() {
     let mut parser = Parser::new(lexer, sym_table);
     let mut module = parser.parse_module();
 
-    let mut res = NameRes::new();
-    res.resolve(&mut module);
-
+    let mut binder = NameBinder::new();
+    binder.resolve(&mut module);
 
 
     println!("{:#?}", module);
+
+    let mut test = Box::new(String::from("hello"));
+
+    test.push('a');
+
+    println!("{:#?}", test);
 
     //let mut test = Rc::new(RefCell::new(Test{ value : 2 }));
     //let mut test2 = test.clone();

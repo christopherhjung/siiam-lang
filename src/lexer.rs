@@ -31,21 +31,11 @@ impl Pos {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Loc {
-    pub file: String,
+    pub source: u32,
     pub begin: Pos,
     pub end: Pos
-}
-
-impl Clone for Loc {
-    fn clone(&self) -> Self {
-        Loc{
-            file: self.file.clone(),
-            begin: self.begin,
-            end: self.end,
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -143,7 +133,7 @@ impl Lexer {
         return false;
     }
 
-    fn is_eof(&self) -> bool{
+    fn eof(&self) -> bool{
         return self.source.peek() == None;
     }
 
@@ -236,7 +226,7 @@ impl Lexer {
         loop {
             self.source.reset_loc();
 
-            if self.is_eof() {
+            if self.eof() {
                 return self.finish(TokenKind::Eof);
             }
 
@@ -256,7 +246,7 @@ impl Lexer {
                 if self.accept_char('*') { // arbitrary comment
                     let mut depth = 1;
                     loop {
-                        if self.is_eof() {
+                        if self.eof() {
                             return self.finish(TokenKind::Error);
                         }
 
@@ -281,7 +271,7 @@ impl Lexer {
                 }
                 if self.accept_char('/') {
                     loop {
-                        if self.is_eof() {
+                        if self.eof() {
                             return self.finish(TokenKind::Error);
                         }
 
@@ -319,7 +309,7 @@ impl Lexer {
                 self.accept_str_char(&mut str, '\\');
                 self.accept_str(&mut str);
 
-                if self.is_eof() || !self.accept_char('\'') {
+                if self.eof() || !self.accept_char('\'') {
                     return self.finish(TokenKind::Error);
                 }
 
@@ -332,7 +322,7 @@ impl Lexer {
                     self.accept_str_char(&mut str, '\\');
                     self.accept_str(&mut str);
 
-                    if self.is_eof() {
+                    if self.eof() {
                         return self.finish(TokenKind::Error);
                     }
                 }
@@ -341,14 +331,14 @@ impl Lexer {
 
             if self.accept_str_pred(&mut str, dec) {
                 while self.accept_str_pred(&mut str, dec) {
-                    if self.is_eof() {
+                    if self.eof() {
                         return self.finish(TokenKind::Error);
                     }
                 }
 
                 return if self.accept_str_char(&mut str, '.') {
                     while self.accept_str_pred(&mut str, dec) {
-                        if self.is_eof() {
+                        if self.eof() {
                             return self.finish(TokenKind::Error);
                         }
                     }
@@ -369,7 +359,7 @@ impl Lexer {
                 kind: TokenKind::Error,
                 symbol: None,
                 loc: Loc {
-                    file: String::new(),
+                    source: 0,
                     begin: Pos::zero(),
                     end: Pos::zero(),
                 },

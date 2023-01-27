@@ -94,14 +94,14 @@ impl Source{
 
     pub fn loc(&mut self) -> Loc {
         Loc {
-            file: String::new(),
+            source: 0,
             begin: self.last,
             end: self.current,
         }
     }
 
     pub fn new( file : String ) -> Source{
-        let mut res = Source{
+        let mut source = Source{
             reader : BufReader::new(File::open(file ).expect("open failed")),
             buffer : [0; 1],
             eof : false,
@@ -110,7 +110,7 @@ impl Source{
             last_char: '\0',
         };
 
-        res.next();
-        res
+        source.next();
+        source
     }
 }

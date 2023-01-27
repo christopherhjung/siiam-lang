@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::cmp::max;
 use std::rc::{Rc, Weak};
 use crate::sym::{Sym};
+//use crate::sema::{TyRef};
 use crate::{TokenKind};
 use crate::ast::Op::Dec;
 
@@ -10,14 +11,13 @@ pub struct Module {
     pub items: Vec<Box<Decl>>,
 }
 
-
 #[derive(Debug)]
 pub struct StructDecl {
-    pub fields: Vec<Box<Decl>>,
+    pub members: Vec<Box<Decl>>,
 }
 
 #[derive(Debug)]
-pub struct FieldDecl {
+pub struct MemberDecl {
     pub ast_type: Box<Ty>,
     pub index: usize,
 }
@@ -57,7 +57,7 @@ impl Decl{
 pub enum DeclKind{
     LetDecl(LetDecl),
     FnDecl(FnDecl),
-    FieldDecl(FieldDecl),
+    MemberDecl(MemberDecl),
     StructDecl(StructDecl)
 }
 
@@ -71,9 +71,10 @@ pub enum Ty {
     Prim(PrimTy),
     Struct(StructTy),
     Fn(FnTy),
+    Err
 }
 
-#[derive(Debug)]
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
 pub enum PrimTy{
     Str,
     Unit,
@@ -107,8 +108,9 @@ pub enum Stmt {
     Expr(ExprStmt),
     Let(LetStmt)
 }
+
 #[derive(Debug)]
-pub enum Expr {
+pub enum ExprKind {
     Literal(Literal),
     Block(Block),
     Ident(IdentExpr),
@@ -119,6 +121,19 @@ pub enum Expr {
     Prefix(PrefixExpr),
     Infix(InfixExpr),
     Postfix(PostfixExpr)
+}
+
+#[derive(Debug)]
+pub struct Expr {
+    pub kind: ExprKind
+}
+
+impl Expr{
+    pub fn new( kind: ExprKind ) -> Expr{
+        Expr{
+            kind
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -185,9 +200,9 @@ pub struct FnCallExpr {
 
 #[derive(Debug)]
 pub struct FieldExpr{
-    pub target_ : Box<Expr>,
-    pub identifier_ : Box<IdentUse>,
-    pub index_ : usize,
+    pub target: Box<Expr>,
+    pub identifier: Box<IdentUse>,
+    pub index: usize,
 }
 
 #[derive(Debug)]

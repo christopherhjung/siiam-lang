@@ -38,7 +38,7 @@ pub trait Visitor{
             DeclKind::StructDecl( kind) => {
 
             },
-            DeclKind::FieldDecl( kind) => {
+            DeclKind::MemberDecl(kind) => {
 
             },
             _ => unreachable!()
@@ -60,21 +60,21 @@ pub trait Visitor{
     }
 
     fn visit_expr(&mut self, expr: &mut Expr){
-        match expr {
-            Expr::Infix(infix) => {
+        match &mut expr.kind {
+            ExprKind::Infix(infix) => {
                 self.visit_expr(&mut infix.lhs);
                 self.visit_expr(&mut infix.rhs);
             },
-            Expr::Postfix(postfix) => {
+            ExprKind::Postfix(postfix) => {
                 self.visit_expr(&mut postfix.expr);
             },
-            Expr::Prefix(prefix) => {
+            ExprKind::Prefix(prefix) => {
                 self.visit_expr(&mut prefix.expr);
             },
-            Expr::Ident(ident) => {
+            ExprKind::Ident(ident) => {
                 self.visit_ident_expr(ident)
             },
-            Expr::Block(block) => {
+            ExprKind::Block(block) => {
                 self.enter_block(block);
                 for mut stmt in &mut block.stmts{
                     self.visit_stmt(stmt);

@@ -12,8 +12,8 @@ const LOOKAHEAD_SIZE: usize = 3;
 
 pub struct Parser {
     lexer: Lexer,
-    lookahead: [Token; LOOKAHEAD_SIZE],
-    lookahead_idx: usize,
+    ahead: [Token; LOOKAHEAD_SIZE],
+    ahead_offset: usize,
     new_lines: usize,
     sym_table: Rc<RefCell<SymTable>>
 }
@@ -21,31 +21,31 @@ pub struct Parser {
 impl Parser {
     fn shift(&mut self) {
         let mut new_token = self.lexer.next_token();
-        self.lookahead[self.lookahead_idx] = new_token;
-        self.lookahead_idx = (self.lookahead_idx + 1) % LOOKAHEAD_SIZE;
+        self.ahead[self.ahead_offset] = new_token;
+        self.ahead_offset = (self.ahead_offset + 1) % LOOKAHEAD_SIZE;
     }
 
     fn lex(&mut self) -> Token {
-        let result: Token = self.lookahead().clone();
+        let result: Token = self.ahead().clone();
         self.shift();
         return result;
     }
 
     fn kind(&mut self) -> TokenKind {
-        self.lookahead().kind
+        self.ahead().kind
     }
 
     fn enter(&mut self, enter: TokenEnter) -> bool {
-        self.lookahead().enter == enter
+        self.ahead().enter == enter
     }
 
-    fn lookahead(&mut self) -> &mut Token {
-        self.lookahead_at(0)
+    fn ahead(&mut self) -> &mut Token {
+        self.ahead_at(0)
     }
 
-    fn lookahead_at(&mut self, i: usize) -> &mut Token {
+    fn ahead_at(&mut self, i: usize) -> &mut Token {
         assert!(i < LOOKAHEAD_SIZE, "lookahead overflow!");
-        return &mut self.lookahead[(i + self.lookahead_idx) % LOOKAHEAD_SIZE];
+        return &mut self.ahead[(i + self.ahead_offset) % LOOKAHEAD_SIZE];
     }
     fn check_kind(&mut self, kind: TokenKind) -> bool {
         kind == self.kind()
@@ -73,7 +73,7 @@ impl Parser {
     }
 
     fn expect_enter(&mut self, enter: TokenEnter) {
-        assert_eq!(self.lookahead().enter, enter, "Kinds do not match!");
+        assert_eq!(self.ahead().enter, enter, "Kinds do not match!");
     }
 
     pub fn parse_module(&mut self) -> Box<Module> {
@@ -104,7 +104,7 @@ impl Parser {
         let ident = self.parse_ident();
         self.expect(TokenKind::LBrace);
         let fields = self.parse_field_list();
-        Box::new(Decl::new(ident, DeclKind::StructDecl(StructDecl{ fields })))
+        Box::new(Decl::new(ident, DeclKind::StructDecl(StructDecl{ members: fields })))
     }
 
     fn parse_fn(&mut self) -> Box<Decl> {
@@ -129,14 +129,14 @@ impl Parser {
     fn parse_block(&mut self) -> Box<Expr>{
         self.expect(TokenKind::LBrace);
         let stmts = self.parse_statement_list();
-        Box::new(Expr::Block(Block{ stmts }))
+        Box::new(Expr::new(ExprKind::Block(Block{ stmts })))
     }
 
     fn parse_field(&mut self, i: usize) -> Box<Decl> {
         let ident = self.parse_ident();
         self.accept(TokenKind::Colon);
 
-        Box::new(Decl::new(ident, DeclKind::FieldDecl(FieldDecl{
+        Box::new(Decl::new(ident, DeclKind::MemberDecl(MemberDecl {
             ast_type: self.parse_type(),
             index: i,
         })))
@@ -187,10 +187,7 @@ impl Parser {
                 let return_type = self.parse_type();
                 Ty::Fn(FnTy { param_types, return_type })
             }
-            _ => {
-                println!("unreachable:{:?}", self.kind());
-                unreachable!()
-            }
+            _ => Ty::Err
         })
     }
 
@@ -297,7 +294,7 @@ impl Parser {
 
     fn parse_prefix_expr(&mut self, op: Op) -> Box<Expr> {
         let expr = self.parse_expr_prec(op.prec());
-        Box::new(Expr::Prefix(PrefixExpr { expr, op }))
+        Box::new(Expr::new(ExprKind::Prefix(PrefixExpr { expr, op })))
     }
 
     fn parse_primary_expr(&mut self) -> Box<Expr> {
@@ -306,8 +303,8 @@ impl Parser {
             TokenKind::LitReal |
             TokenKind::LitStr  |
             TokenKind::LitChar |
-            TokenKind::LitBool => Box::new(Expr::Literal(self.parse_literal())),
-            TokenKind::Ident => Box::new(Expr::Ident(IdentExpr { ident_use: Box::new(IdentUse::new(self.parse_ident())) })),
+            TokenKind::LitBool => Box::new(Expr::new(ExprKind::Literal(self.parse_literal()))),
+            TokenKind::Ident => Box::new(Expr::new(ExprKind::Ident(IdentExpr { ident_use: Box::new(IdentUse::new(self.parse_ident())) }))),
             TokenKind::LParen => {
                 self.lex();
                 let expr = self.parse_expr();
@@ -321,19 +318,19 @@ impl Parser {
 
     fn parse_infix_expr(&mut self, lhs: Box<Expr>, op: Op) -> Box<Expr> {
         let rhs = self.parse_expr_prec(op.prec().next());
-        Box::new(Expr::Infix(InfixExpr { lhs, rhs, op }))
+        Box::new(Expr::new(ExprKind::Infix(InfixExpr { lhs, rhs, op })))
     }
 
     fn parse_postfix_expr(&mut self, lhs: Box<Expr>, op : Op) -> Box<Expr> {
         match op {
             Op::Inc |
-            Op::Dec => Box::new(Expr::Postfix(PostfixExpr { expr: lhs, op })),
-            Op::LeftParen => Box::new(Expr::FnCall(FnCallExpr{ callee: lhs, args: self.parse_expr_list(TokenKind::Comma, TokenKind::RParen) })),
-            Op::Dot => Box::new(Expr::Field(FieldExpr{
-                target_: lhs,
-                identifier_: Box::new(IdentUse::new(self.parse_ident()) ),
-                index_: 0
-            })),
+            Op::Dec => Box::new(Expr::new(ExprKind::Postfix(PostfixExpr { expr: lhs, op }))),
+            Op::LeftParen => Box::new(Expr::new(ExprKind::FnCall(FnCallExpr{ callee: lhs, args: self.parse_expr_list(TokenKind::Comma, TokenKind::RParen) }))),
+            Op::Dot => Box::new(Expr::new(ExprKind::Field(FieldExpr{
+                target: lhs,
+                identifier: Box::new(IdentUse::new(self.parse_ident()) ),
+                index: 0
+            }))),
             _ => unreachable!()
         }
     }
@@ -415,7 +412,7 @@ impl Parser {
             else_branch = Some(self.parse_block());
         }
 
-        Box::new(Expr::If(IfExpr{condition, if_branch, else_branch}))
+        Box::new(Expr::new(ExprKind::If(IfExpr{condition, if_branch, else_branch})))
     }
 
     fn parse_decl(&mut self) -> Box<Stmt>{
@@ -509,8 +506,8 @@ impl Parser {
 
         Parser {
             lexer,
-            lookahead,
-            lookahead_idx: 0,
+            ahead: lookahead,
+            ahead_offset: 0,
             new_lines: 0,
             sym_table
         }

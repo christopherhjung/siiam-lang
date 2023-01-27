@@ -14,12 +14,12 @@ pub struct SymTable {
 impl SymTable {
     pub fn from( &mut self, str : String ) -> Sym {
         if let Some(sym) = self.str2sym.get(&str){
-            sym.clone()
+            *sym
         }else{
             let sym = Sym{id: self.str2sym.len()};
             self.str2sym.insert(str.clone(), sym);
             self.id2str.push(str);
-            sym.clone()
+            sym
         }
     }
 

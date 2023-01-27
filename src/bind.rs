@@ -7,13 +7,13 @@ use crate::visitor::Visitor;
 use crate::Module;
 use crate::sym::{Sym};
 
-pub struct NameRes {
+pub struct NameBinder {
     levels : Vec<usize>,
     decls : Vec<*const Decl>,
     symbol2decl : HashMap<usize, *const Decl>
 }
 
-impl NameRes {
+impl NameBinder {
     pub fn push_scope(&mut self){
         self.levels.push(self.decls.len())
     }
@@ -74,8 +74,8 @@ impl NameRes {
         self.visit_module(module);
     }
 
-    pub fn new() -> NameRes {
-        NameRes {
+    pub fn new() -> NameBinder {
+        NameBinder {
             levels: Vec::new(),
             decls: Vec::new(),
             symbol2decl: HashMap::new()
@@ -83,7 +83,7 @@ impl NameRes {
     }
 }
 
-impl Visitor for NameRes {
+impl Visitor for NameBinder {
     fn enter_decl(&mut self, decl: &mut Decl) {
         match &mut decl.kind {
             DeclKind::LetDecl(_) => self.insert(decl),
