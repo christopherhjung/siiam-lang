@@ -87,7 +87,7 @@ impl NameBinder {
 impl Visitor for NameBinder {
     fn enter_decl(&mut self, decl: &mut Decl) {
         match &mut decl.kind {
-            DeclKind::LetDecl(_) => self.insert(decl),
+            DeclKind::LocalDecl(_) => self.insert(decl),
             DeclKind::FnDecl(_) => self.insert(decl),
             DeclKind::StructDecl(_) => self.insert(decl),
             DeclKind::MemberDecl(member) => {

@@ -32,7 +32,7 @@ pub struct FnDecl {
 }
 
 #[derive(Debug)]
-pub struct LetDecl {
+pub struct LocalDecl {
     pub ast_type: Option<Box<ASTTy>>,
 }
 
@@ -59,7 +59,7 @@ impl Decl{
 
 #[derive(Debug)]
 pub enum DeclKind{
-    LetDecl(LetDecl),
+    LocalDecl(LocalDecl),
     FnDecl(FnDecl),
     MemberDecl(MemberDecl),
     StructDecl(StructDecl)

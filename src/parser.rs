@@ -431,7 +431,7 @@ impl Parser {
         }
 
         Box::new(Stmt::Let(LetStmt{
-            local_decl: Box::new(Decl::new(ident, DeclKind::LetDecl(LetDecl {
+            local_decl: Box::new(Decl::new(ident, DeclKind::LocalDecl(LocalDecl {
                 ast_type
             }))),
             init
@@ -464,7 +464,7 @@ impl Parser {
         let ident = self.parse_ident();
         self.accept(TokenKind::Colon);
 
-        Box::new(Decl::new(ident, DeclKind::LetDecl(LetDecl {
+        Box::new(Decl::new(ident, DeclKind::LocalDecl(LocalDecl {
             ast_type: Some(self.parse_type())
         })))
     }
