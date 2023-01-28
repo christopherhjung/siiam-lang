@@ -89,21 +89,33 @@ impl Visitor for NameBinder {
         match &mut decl.kind {
             DeclKind::LetDecl(_) => self.insert(decl),
             DeclKind::FnDecl(_) => self.insert(decl),
+            DeclKind::StructDecl(_) => self.insert(decl),
+            DeclKind::MemberDecl(member) => {
+                let mut ast_type : &mut ASTTy = &mut member.ast_type;
+                if let ASTTy::Struct(struct_ty) = &mut ast_type{
+                    let decl = self.lookup(struct_ty.ident_use.ident.sym);
+                    struct_ty.ident_use.decl = decl;
+                }
+            },
             _ => return
         }
     }
 
-    fn enter_block(&mut self, decl: &mut Block) {
-        self.push_scope();
+    fn enter_expr(&mut self, expr: &mut Expr) {
+        match &mut expr.kind {
+            ExprKind::Block(_) => self.push_scope(),
+            ExprKind::Ident(ident_expr) => {
+                let ident_use = &mut ident_expr.ident_use;
+                let decl = self.lookup(ident_use.ident.sym);
+                ident_use.decl = decl
+            },
+            _ => {}
+        }
     }
 
-    fn exit_block(&mut self, decl: &mut Block) {
-        self.pop_scope();
-    }
-
-    fn visit_ident_expr(&mut self, ident_expr: &mut IdentExpr) {
-        let ident_use = &mut ident_expr.ident_use;
-        let decl = self.lookup(ident_use.ident.sym);
-        ident_use.decl = decl;
+    fn exit_expr(&mut self, expr: &mut Expr) {
+        if let ExprKind::Block(_) = expr.kind{
+            self.pop_scope();
+        }
     }
 }

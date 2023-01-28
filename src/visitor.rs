@@ -12,7 +12,10 @@ pub trait Visitor{
     fn enter_block(&mut self, decl: &mut Block){}
     fn exit_block(&mut self, decl: &mut Block){}
 
-    fn visit_ident_expr(&mut self, ident_expr: &mut IdentExpr){}
+    fn enter_expr(&mut self, decl: &mut Expr){}
+    fn exit_expr(&mut self, decl: &mut Expr){}
+
+    //fn visit_ident_expr(&mut self, ident_expr: &mut IdentExpr){}
 
     fn visit_module(&mut self, module: &mut Module){
         self.enter_module(module);
@@ -36,7 +39,9 @@ pub trait Visitor{
 
             },
             DeclKind::StructDecl( kind) => {
-
+                for member in &mut kind.members{
+                    self.visit_decl(member);
+                }
             },
             DeclKind::MemberDecl(kind) => {
 
@@ -60,6 +65,7 @@ pub trait Visitor{
     }
 
     fn visit_expr(&mut self, expr: &mut Expr){
+        self.enter_expr(expr);
         match &mut expr.kind {
             ExprKind::Infix(infix) => {
                 self.visit_expr(&mut infix.lhs);
@@ -72,7 +78,7 @@ pub trait Visitor{
                 self.visit_expr(&mut prefix.expr);
             },
             ExprKind::Ident(ident) => {
-                self.visit_ident_expr(ident)
+                //self.visit_ident_expr( ident)
             },
             ExprKind::Block(block) => {
                 self.enter_block(block);
@@ -83,5 +89,6 @@ pub trait Visitor{
             }
             _ => return
         }
+        self.exit_expr(expr);
     }
 }

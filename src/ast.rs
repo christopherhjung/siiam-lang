@@ -41,7 +41,7 @@ pub struct Decl{
     pub ident: Box<Ident>,
     pub shadows: Option<*const Decl>,
     pub depth: usize,
-    pub ty: Option<Rc<Ty>>,
+    pub ty: Option<TyRef>,
     pub kind : DeclKind
 }
 
@@ -130,7 +130,7 @@ pub enum ExprKind {
 #[derive(Debug)]
 pub struct Expr {
     pub kind: ExprKind,
-    pub ty: Option<Rc<Ty>>,
+    pub ty: Option<TyRef>,
 }
 
 impl Expr{

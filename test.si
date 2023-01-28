@@ -1,10 +1,14 @@
 
+struct Point{
+    x : f64
+    y : Point
+}
 
 
 fn main() : i32{
-    let a = 9
+    let a : i32 = 9
 
-    a - 1
+    a + 10
 }
 /*
 

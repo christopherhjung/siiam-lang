@@ -9,8 +9,10 @@ use crate::ast::{Decl, Module};
 use crate::bind::NameBinder;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
+use crate::sema::{TypeChecker, TyTable};
 use crate::source::Source;
 use crate::sym::*;
+use crate::visitor::Visitor;
 
 mod lexer;
 mod source;
@@ -41,14 +43,13 @@ pub fn main() {
     let mut binder = NameBinder::new();
     binder.resolve(&mut module);
 
-
     println!("{:#?}", module);
+    let mut ty_table = Rc::new(RefCell::new(TyTable::new()));
+    let mut sema = TypeChecker::new(ty_table);
+    sema.visit_module(&mut module);
 
-    let mut test = Box::new(String::from("hello"));
+    //println!("{:#?}", module);
 
-    test.push('a');
-
-    println!("{:#?}", test);
 
     //let mut test = Rc::new(RefCell::new(Test{ value : 2 }));
     //let mut test2 = test.clone();
