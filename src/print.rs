@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use crate::{Decl, Module, Sym, SymTable, Visitor};
 use crate::ast::{DeclKind, Expr, ExprKind, Literal, PrimTy, Stmt};
+use crate::ast::ExprKind::Block;
 use crate::check::{FnTy, Ty, TyRef};
 
 pub struct ProgramPrinter{
@@ -221,8 +222,22 @@ impl Visitor for ProgramPrinter {
                         self.print("?");
                     }
                 }
+
+                let is_block_body = if let ExprKind::Block(_) = &kind.body.kind{
+                    true
+                }else{
+                    false
+                };
+
+                if !is_block_body{
+                    self.print(" = ");
+                };
+
                 self.visit_expr(&mut kind.body);
-                self.nl();
+
+                if !is_block_body{
+                    self.nl();
+                };
             },
             _ => {}
         }

@@ -200,7 +200,14 @@ impl Visitor for TypeChecker {
                 self.decl_ty(decl as *const Decl);
             },
             DeclKind::FnDecl(fn_decl) => {
-                fn_decl.body.ty = Some(self.infer_or_unit(&fn_decl.ret_ty));
+                let ret_ty = self.infer_or_unit(&fn_decl.ret_ty);
+                /*let param_tys = Vec::new();
+                for param in fn_decl.params{
+                    param_tys.push(param.ty);
+                }*/
+
+                decl.ty = Some(Rc::new(RefCell::new(Ty::Fn(FnTy{ params: vec![], ret_ty: Some(ret_ty.clone()) }))));
+                fn_decl.body.ty = Some(ret_ty);
             },
             _ => return
         }

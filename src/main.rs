@@ -1,4 +1,5 @@
 #![feature(hash_set_entry)]
+#![feature(let_else)]
 
 use std::borrow::BorrowMut;
 use std::cell::{Cell, RefCell};
