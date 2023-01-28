@@ -9,10 +9,11 @@ use crate::ast::{Decl, Module};
 use crate::bind::NameBinder;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
-use crate::sema::{TypeChecker, TyTable};
+use crate::check::{TypeChecker, TyTable};
 use crate::source::Source;
 use crate::sym::*;
 use crate::visitor::Visitor;
+use crate::print::ProgramPrinter;
 
 mod lexer;
 mod source;
@@ -21,8 +22,9 @@ mod bind;
 mod ast;
 mod sym;
 mod visitor;
-mod sema;
+mod check;
 mod token;
+mod print;
 
 struct B{
     test : i32
@@ -37,7 +39,7 @@ pub fn main() {
     let mut source = Source::new(String::from("test.si"));
     let mut lexer = Lexer::new(source, sym_table.clone());
 
-    let mut parser = Parser::new(lexer, sym_table);
+    let mut parser = Parser::new(lexer, sym_table.clone());
     let mut module = parser.parse_module();
 
     let mut binder = NameBinder::new();
@@ -48,7 +50,9 @@ pub fn main() {
     let mut sema = TypeChecker::new(ty_table);
     sema.visit_module(&mut module);
 
-    //println!("{:#?}", module);
+    let mut printer = ProgramPrinter::new(sym_table);
+    printer.visit_module(&mut module);
+    println!("{}", printer.result);
 
 
     //let mut test = Rc::new(RefCell::new(Test{ value : 2 }));

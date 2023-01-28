@@ -5,7 +5,7 @@ use std::rc::{Rc, Weak};
 use strum_macros::EnumIter;
 
 use crate::ast::Op::Dec;
-use crate::sema::*;
+use crate::check::*;
 use crate::sym::Sym;
 
 #[derive(Debug)]
@@ -27,7 +27,7 @@ pub struct MemberDecl {
 #[derive(Debug)]
 pub struct FnDecl {
     pub params: Vec<Box<Decl>>,
-    pub return_type: Option<Box<ASTTy>>,
+    pub ret_ty: Option<Box<ASTTy>>,
     pub body: Box<Expr>,
 }
 
@@ -73,8 +73,8 @@ pub struct Ident {
 #[derive(Debug)]
 pub enum ASTTy {
     Prim(PrimTy),
-    Struct(StructTy),
-    Fn(FnTy),
+    Struct(ASTStructTy),
+    Fn(ASTFnTy),
     Err
 }
 
@@ -92,12 +92,12 @@ pub enum PrimTy{
 }
 
 #[derive(Debug)]
-pub struct StructTy {
+pub struct ASTStructTy {
     pub ident_use: Box<IdentUse>,
 }
 
 #[derive(Debug)]
-pub struct FnTy {
+pub struct ASTFnTy {
     pub param_types: Vec<Box<ASTTy>>,
     pub return_type: Box<ASTTy>,
 }
@@ -354,5 +354,26 @@ impl Op {
             Op::Mul | Op::Div | Op::Rem => Prec::Mul,
             _ => Prec::Bottom
         }
+    }
+}
+
+impl Op{
+    pub fn sign(&self) -> String {
+        String::from(match self {
+            Op::Or => "|",
+            Op::And => "&",
+            Op::Assign => "=",
+            Op::Eq => "==",
+            Op::Ne => "!=",
+            Op::Lt => "<",
+            Op::Le => "<=",
+            Op::Gt => ">",
+            Op::Ge => ">=",
+            Op::Add => "+",
+            Op::Sub => "-",
+            Op::Mul => "*",
+            Op::Div => "/",
+            _ => "?"
+        })
     }
 }

@@ -122,7 +122,7 @@ impl Parser {
 
         Box::new(Decl::new(ident, DeclKind::FnDecl(FnDecl{
             params,
-            return_type,
+            ret_ty: return_type,
             body
         })))
     }
@@ -176,7 +176,7 @@ impl Parser {
             }
             TokenKind::Ident => {
                 let ident = self.parse_ident();
-                ASTTy::Struct(StructTy {
+                ASTTy::Struct(ASTStructTy {
                     ident_use: Box::new(IdentUse::new(ident))
                 })
             }
@@ -186,7 +186,7 @@ impl Parser {
                 let param_types = self.parse_type_list();
                 self.accept(TokenKind::Arrow);
                 let return_type = self.parse_type();
-                ASTTy::Fn(FnTy { param_types, return_type })
+                ASTTy::Fn(ASTFnTy { param_types, return_type })
             }
             _ => ASTTy::Err
         })

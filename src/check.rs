@@ -6,17 +6,30 @@ use std::rc::Rc;
 
 use strum::IntoEnumIterator;
 
-use crate::{ast, Decl, Module};
-use crate::ast::{ASTTy, Block, DeclKind, Expr, ExprKind, IdentExpr, Literal, LocalDecl, Op, PrimTy, Stmt, StructDecl, StructTy};
-use crate::sema::Ty::Prim;
+use crate::{ast, Decl, Module, Sym};
+use crate::ast::{ASTTy, Block, DeclKind, Expr, ExprKind, IdentExpr, Literal, LocalDecl, Op, PrimTy, Stmt, StructDecl, ASTStructTy};
+use crate::check::Ty::Prim;
 use crate::visitor::Visitor;
 
 pub type TyRef = Rc<RefCell<Ty>>;
 
 #[derive(Debug)]
+pub struct StructTy {
+    pub name: Sym,
+    members : Vec<TyRef>
+}
+
+#[derive(Debug)]
+pub struct FnTy {
+    pub params : Vec<TyRef>,
+    pub ret_ty : Option<TyRef>
+}
+
+#[derive(Debug)]
 pub enum Ty {
     Prim(PrimTy),
-    Struct{members : Vec<TyRef>},
+    Struct(StructTy),
+    Fn(FnTy),
     Err,
 }
 
@@ -33,7 +46,7 @@ impl TyTable {
         self.err_ty.clone()
     }
 
-    fn struct_ty(&mut self, ty: &StructTy) -> TyRef {
+    fn struct_ty(&mut self, ty: &ASTStructTy) -> TyRef {
         if let Some(decl) = ty.ident_use.decl {
             self.decl_ty(decl)
         } else {
@@ -58,14 +71,14 @@ impl TyTable {
 
         match &decl.kind {
             DeclKind::StructDecl(struct_decl) => {
-                decl.ty = Some(Rc::new(RefCell::new(Ty::Struct { members: Vec::new() })));
+                decl.ty = Some(Rc::new(RefCell::new(Ty::Struct(StructTy{ name: decl.ident.sym, members: Vec::new() }))));
 
                 for member in &struct_decl.members {
                     let member_ty = self.decl_ty(member.as_ref() as *const Decl);
                     let mut struct_ty = RefCell::borrow_mut(decl.ty.as_ref().unwrap());
 
-                    if let Ty::Struct { members } = &mut *struct_ty{
-                        members.push(member_ty);
+                    if let Ty::Struct(struct_ty) = &mut *struct_ty{
+                        struct_ty.members.push(member_ty);
                     }
                 }
 
@@ -187,22 +200,7 @@ impl Visitor for TypeChecker {
                 self.decl_ty(decl as *const Decl);
             },
             DeclKind::FnDecl(fn_decl) => {
-                fn_decl.body.ty = Some(self.infer_or_unit(&fn_decl.return_type));
-            },
-            _ => return
-        }
-    }
-
-    fn enter_stmt(&mut self, stmt: &mut Stmt) {
-        match stmt {
-            Stmt::Let(let_expr) =>{
-                if let Some(init) = &mut let_expr.init{
-                    if let DeclKind::LocalDecl(local_decl) = &let_expr.local_decl.kind{
-                        if let Some(ast_ty) = &local_decl.ast_type{
-                            init.ty = Some(self.infer(ast_ty));
-                        }
-                    }
-                }
+                fn_decl.body.ty = Some(self.infer_or_unit(&fn_decl.ret_ty));
             },
             _ => return
         }
@@ -264,6 +262,21 @@ impl Visitor for TypeChecker {
                     }
                 }
             }
+            _ => return
+        }
+    }
+
+    fn enter_stmt(&mut self, stmt: &mut Stmt) {
+        match stmt {
+            Stmt::Let(let_expr) =>{
+                if let Some(init) = &mut let_expr.init{
+                    if let DeclKind::LocalDecl(local_decl) = &let_expr.local_decl.kind{
+                        if let Some(ast_ty) = &local_decl.ast_type{
+                            init.ty = Some(self.infer(ast_ty));
+                        }
+                    }
+                }
+            },
             _ => return
         }
     }
