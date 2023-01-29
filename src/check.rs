@@ -180,7 +180,6 @@ impl TypeChecker {
         }else {
             return None
         })
-        //RefCell::borrow_mut(&mut self.ty_table).decl_ty(decl)
     }
 
     pub fn infer_or_unit(&mut self, ty: &Option<Box<ASTTy>>) -> TyRef{
@@ -213,7 +212,27 @@ impl Visitor for TypeChecker {
         }
     }
 
-    fn enter_expr(&mut self, expr: &mut Expr) {
+    fn enter_stmt(&mut self, stmt: &mut Stmt) {
+        match stmt {
+            Stmt::Let(let_stmt) =>{
+                if let Some(init) = &mut let_stmt.init{
+                    if let DeclKind::LocalDecl(local_decl) = &let_stmt.local_decl.kind{
+                        if let Some(ast_ty) = &local_decl.ast_type{
+                            let ty = self.infer(ast_ty);
+                            self.coerce(init, &ty);
+                            self.coerce_decl(&mut let_stmt.local_decl, &ty);
+                        }
+                    }
+                }
+            }
+            Stmt::Expr(expr_stmt) =>{
+                self.visit_expr(&mut expr_stmt.expr);
+            },
+            _ => return
+        }
+    }
+
+    fn visit_expr(&mut self, expr: &mut Expr) {
         match &mut expr.kind {
             //Expr::Literal(lit) => self.ty_table.prim_ty(lit.
             ExprKind::Infix(infix) => {
@@ -228,12 +247,18 @@ impl Visitor for TypeChecker {
                         self.coerce(expr, &self.prim_ty(PrimTy::Bool))
                     },
                     Op::Add | Op::Sub | Op::Mul | Op::Div => {
-                        let join_option_ty = self.join_option_ty(&infix.lhs.ty, &expr.ty);
+                        let join_option_ty = self.join_option_ty(&expr.ty, &infix.lhs.ty );
                         let join_option_ty = self.join_option_ty(&join_option_ty, &infix.rhs.ty);
 
-                        if let Some(join_ty) = join_option_ty{
+                        if let Some(join_ty) = &join_option_ty{
                             self.coerce(&mut infix.lhs, &join_ty);
                             self.coerce(&mut infix.rhs, &join_ty);
+                        }
+
+                        self.visit_expr(&mut infix.lhs);
+                        self.visit_expr(&mut infix.rhs);
+
+                        if let Some(join_ty) = &join_option_ty{
                             self.coerce(expr, &join_ty);
                         }
                     },
@@ -247,12 +272,9 @@ impl Visitor for TypeChecker {
                     Literal::Char(_) => self.coerce(expr, &self.prim_ty(PrimTy::Char)),
                     _ => {}
                 }
-
-                println!("{:?} !!!", expr.ty);
             },
             ExprKind::Ident(ident_expr) => {
                 if let Some(ty) = &expr.ty{
-                    println!("{:?} ----", ty);
                     if let Some(decl) = ident_expr.ident_use.decl{
                         self.coerce_decl(unsafe{&mut *(decl as *mut Decl)}, ty);
                     }
@@ -267,23 +289,12 @@ impl Visitor for TypeChecker {
                             self.coerce(&mut expr_stmt.expr, ret_ty);
                         }
                     }
-                }
-            }
-            _ => return
-        }
-    }
 
-    fn enter_stmt(&mut self, stmt: &mut Stmt) {
-        match stmt {
-            Stmt::Let(let_expr) =>{
-                if let Some(init) = &mut let_expr.init{
-                    if let DeclKind::LocalDecl(local_decl) = &let_expr.local_decl.kind{
-                        if let Some(ast_ty) = &local_decl.ast_type{
-                            init.ty = Some(self.infer(ast_ty));
-                        }
+                    for stmt in block.stmts.iter_mut().rev(){
+                        self.visit_stmt(stmt);
                     }
                 }
-            },
+            }
             _ => return
         }
     }

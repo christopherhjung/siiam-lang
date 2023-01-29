@@ -47,8 +47,8 @@ pub fn main() {
 
     let mut binder = NameBinder::new();
     binder.resolve(&mut module);
-
     println!("{:#?}", module);
+
     let mut ty_table = Rc::new(RefCell::new(TyTable::new()));
     let mut sema = TypeChecker::new(ty_table);
     sema.visit_module(&mut module);

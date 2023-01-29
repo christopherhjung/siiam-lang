@@ -218,8 +218,18 @@ impl Visitor for ProgramPrinter {
             },
             ExprKind::Infix(infix) => {
                 self.visit_expr(&mut infix.lhs);
+                self.space();
                 self.print( infix.op.sign());
+                self.space();
                 self.visit_expr(&mut infix.rhs);
+            },
+            ExprKind::Prefix(prefix_expr) => {
+                self.print( prefix_expr.op.sign());
+                self.visit_expr(&mut prefix_expr.expr);
+            },
+            ExprKind::Postfix(postfix_expr) => {
+                self.visit_expr(&mut postfix_expr.expr);
+                self.print( postfix_expr.op.sign());
             }
             _ => {}
         }

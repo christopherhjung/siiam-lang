@@ -362,7 +362,6 @@ impl Op{
         String::from(match self {
             Op::Or => "|",
             Op::And => "&",
-            Op::Assign => "=",
             Op::Eq => "==",
             Op::Ne => "!=",
             Op::Lt => "<",
@@ -373,6 +372,13 @@ impl Op{
             Op::Sub => "-",
             Op::Mul => "*",
             Op::Div => "/",
+            Op::Inc => "++",
+            Op::Dec => "--",
+            Op::Assign => "=",
+            Op::AddAssign => "+=",
+            Op::SubAssign => "-=",
+            Op::MulAssign => "*=",
+            Op::DivAssign => "/=",
             _ => "?"
         })
     }
