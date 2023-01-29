@@ -109,7 +109,7 @@ impl Parser {
         self.expect(TokenKind::Struct);
         let ident = self.parse_ident();
         self.expect(TokenKind::LBrace);
-        let fields = self.parse_field_list();
+        let fields = self.parse_member_list();
         Box::new(Decl::new(ident, DeclKind::StructDecl(StructDecl{ members: fields })))
     }
 
@@ -138,7 +138,7 @@ impl Parser {
         Box::new(Expr::new(ExprKind::Block(Block{ stmts })))
     }
 
-    fn parse_field(&mut self, i: usize) -> Box<Decl> {
+    fn parse_member(&mut self, i: usize) -> Box<Decl> {
         let ident = self.parse_ident();
         self.accept(TokenKind::Colon);
 
@@ -195,17 +195,6 @@ impl Parser {
             }
             _ => ASTTy::Err
         })
-    }
-
-    fn parse_list<T>(&mut self, mut f: impl FnMut() -> Box<T>, separator: TokenKind, delimiter: TokenKind) -> Vec<Box<T>> {
-        let mut exprs = Vec::new();
-        while !self.accept(delimiter) {
-            if !exprs.is_empty() {
-                self.expect(separator);
-            }
-            exprs.push(f());
-        }
-        return exprs;
     }
 
     fn parse_operator(&mut self) -> Option<Op> {
@@ -435,15 +424,20 @@ impl Parser {
             ast_type = Some(self.parse_type());
         }
 
-        let mut init = None;
-        if self.accept(TokenKind::Assign) {
-            init = Some(self.parse_expr());
-        }
+        let init = if self.accept(TokenKind::Assign) {
+            Some(self.parse_expr())
+        }else{
+            None
+        };
 
         Box::new(Stmt::Let(LetStmt{
-            local_decl: Box::new(Decl::new(ident, DeclKind::LocalDecl(LocalDecl {
-                ast_ty: ast_type
-            }))),
+            local_decl: Box::new(
+                Decl::new(ident, DeclKind::LocalDecl(
+                    LocalDecl {
+                        ast_ty: ast_type
+                    }
+                ))
+            ),
             init
         }))
     }
@@ -490,13 +484,13 @@ impl Parser {
         return params;
     }
 
-    fn parse_field_list(&mut self) -> Vec<Box<Decl>> {
+    fn parse_member_list(&mut self) -> Vec<Box<Decl>> {
         let mut exprs = Vec::new();
         while !self.accept(TokenKind::RBrace) {
             if !exprs.is_empty() {
                 self.expect_enter(TokenEnter::NL);
             }
-            exprs.push(self.parse_field(exprs.len()));
+            exprs.push(self.parse_member(exprs.len()));
         }
         return exprs;
     }

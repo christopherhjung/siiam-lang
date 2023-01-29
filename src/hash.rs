@@ -23,17 +23,17 @@ impl Hash{
         let output = Sha256::digest(s.as_bytes());
         let mut hash = Hash { data: [0; 32] };
         hash.data.copy_from_slice(output.as_ref());
-        return hash;
+        hash
     }
 
     pub fn zero(  ) -> Hash{
-        return Hash { data: [0; 32] };
+        Hash { data: [0; 32] }
     }
 }
 
 impl PartialEq for Hash{
     fn eq(&self, other: &Self) -> bool{
-        return self.data == other.data
+        self.data == other.data
     }
 }
 

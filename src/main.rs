@@ -28,14 +28,7 @@ mod check;
 mod token;
 mod print;
 mod llvm;
-
-struct B{
-    test : i32
-}
-
-struct Test{
-    value : i32
-}
+mod def;
 
 pub fn main() {
     let mut sym_table = Rc::new(RefCell::new(SymTable::new()));
@@ -61,7 +54,6 @@ pub fn main() {
     code_gen.visit_module(&mut module);
 
     code_gen.emit();
-
 }
 
 
