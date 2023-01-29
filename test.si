@@ -4,12 +4,13 @@ struct Point{
     y : Point
 }
 
-
-fn main() : i32{
-    let a : i32 = 9
-
-    a + 10
+fn main() : i64{
+    let a : i64 = 9
+    let x : i64 = a - a
+    let y : i64 = x * x
+    y
 }
+
 /*
 
 fn lol(  ){

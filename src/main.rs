@@ -11,6 +11,7 @@ use crate::bind::NameBinder;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::check::{TypeChecker, TyTable};
+use crate::llvm::CodeGen;
 use crate::source::Source;
 use crate::sym::*;
 use crate::visitor::Visitor;
@@ -26,6 +27,7 @@ mod visitor;
 mod check;
 mod token;
 mod print;
+mod llvm;
 
 struct B{
     test : i32
@@ -51,36 +53,15 @@ pub fn main() {
     let mut sema = TypeChecker::new(ty_table);
     sema.visit_module(&mut module);
 
-    let mut printer = ProgramPrinter::new(sym_table);
+    let mut printer = ProgramPrinter::new(sym_table.clone());
     printer.visit_module(&mut module);
     println!("{}", printer.result);
 
+    let mut code_gen = CodeGen::new(sym_table);
+    code_gen.visit_module(&mut module);
 
-    //let mut test = Rc::new(RefCell::new(Test{ value : 2 }));
-    //let mut test2 = test.clone();
+    code_gen.emit();
 
-    //let test = test.borrow_mut();
-
-
-    //println!("{:?}", Rc::get_mut(&mut ).is_none())
-
-
-    /*
-        loop{
-            let token = lexer.next_token();
-            println!("{:?}", token);
-            if token.variant == TokenVariant::Eof || token.variant == TokenVariant::Error{
-                break
-            }
-        }*/
-
-    //let mut f = BufReader::new(File::open("src/main.rs").expect("open failed"));
-
-    //let mut buffer = [0; 1];
-    //f.read(&mut buffer[..]);
-
-    //let val = buffer[0];
-    //println!("{val}")
 }
 
 

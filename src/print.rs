@@ -116,64 +116,6 @@ impl Visitor for ProgramPrinter {
         }
     }
 
-    fn visit_expr(&mut self, expr: &mut Expr) {
-        match &mut expr.kind {
-            ExprKind::Block(block) => {
-                self.print("{");
-                self.nl();
-                self.shift();
-
-                for stmt in &mut block.stmts{
-                    self.visit_stmt(stmt);
-                }
-
-                self.pop();
-                self.print("}");
-                self.nl();
-            },
-            ExprKind::Literal(lit) => {
-                match lit {
-                    Literal::Str(str) => self.print(str.to_string()),
-                    Literal::Bool(bool) => self.print(bool.to_string()),
-                    Literal::Char(char) => self.print(char.to_string()),
-                    Literal::Int(char) => self.print(char.to_string()),
-                    Literal::Real(real) => self.print(real.to_string()),
-                    _ => {}
-                }
-            },
-            ExprKind::Ident(ident_expr) => {
-                self.print_symbol(ident_expr.ident_use.ident.sym);
-            },
-            ExprKind::Infix(infix) => {
-                self.visit_expr(&mut infix.lhs);
-                self.print( infix.op.sign());
-                self.visit_expr(&mut infix.lhs);
-            }
-            _ => {}
-        }
-    }
-
-    fn visit_stmt(&mut self, stmt: &mut Stmt) {
-        match stmt {
-            Stmt::Expr(expr_stmt) => {
-                self.visit_expr(&mut expr_stmt.expr);
-                self.nl();
-            },
-            Stmt::Let(let_stmt) =>{
-                self.keyword("let");
-                self.space();
-                self.print_symbol(let_stmt.local_decl.ident.sym);
-                self.print(" : ");
-                self.print_option_ty(&let_stmt.local_decl.ty);
-                if let Some( init) = &mut let_stmt.init{
-                    self.print(" = ");
-                    self.visit_expr( init);
-                }
-                self.nl();
-            }
-        }
-    }
-
     fn visit_decl(&mut self, decl: &mut Decl) {
         match &mut decl.kind {
             DeclKind::StructDecl(kind) => {
@@ -208,37 +150,77 @@ impl Visitor for ProgramPrinter {
                     self.visit_decl(&mut decl);
                 }
                 self.print(")");
-                if let Some(ret_ty) = &kind.ret_ty {
-                    self.print(" : ");
 
-                    if let Some(fn_ty) = &decl.ty{
-                        let ty = RefCell::borrow(fn_ty);
-                        if let Ty::Fn(FnTy{ret_ty: Some(ret_ty), .. }) = &*ty{
-                            self.print_ty(ret_ty);
-                        }else{
-                            self.print("?");
-                        }
+                if let Some(fn_ty) = &decl.ty{
+                    self.print(" : ");
+                    let ty = RefCell::borrow(fn_ty);
+                    if let Ty::Fn(FnTy{ret_ty: Some(ret_ty), .. }) = &*ty{
+                        self.print_ty(ret_ty);
                     }else{
                         self.print("?");
                     }
                 }
 
-                let is_block_body = if let ExprKind::Block(_) = &kind.body.kind{
-                    true
-                }else{
-                    false
-                };
-
-                if !is_block_body{
-                    self.print(" = ");
-                };
-
                 self.visit_expr(&mut kind.body);
-
-                if !is_block_body{
-                    self.nl();
-                };
             },
+            _ => {}
+        }
+    }
+
+    fn visit_stmt(&mut self, stmt: &mut Stmt) {
+        match stmt {
+            Stmt::Expr(expr_stmt) => {
+                self.visit_expr(&mut expr_stmt.expr);
+                self.nl();
+            },
+            Stmt::Let(let_stmt) =>{
+                self.keyword("let");
+                self.space();
+                self.print_symbol(let_stmt.local_decl.ident.sym);
+                self.print(" : ");
+                self.print_option_ty(&let_stmt.local_decl.ty);
+                if let Some( init) = &mut let_stmt.init{
+                    self.print(" = ");
+                    self.visit_expr( init);
+                }
+                self.nl();
+            }
+        }
+    }
+
+    fn visit_expr(&mut self, expr: &mut Expr) {
+        match &mut expr.kind {
+            ExprKind::Block(block) => {
+                self.print("{");
+                self.nl();
+                self.shift();
+
+                for stmt in &mut block.stmts{
+                    self.visit_stmt(stmt);
+                }
+
+                self.pop();
+                self.print("}");
+                self.nl();
+            },
+            ExprKind::Literal(lit) => {
+                match lit {
+                    Literal::Str(str) => self.print(str.to_string()),
+                    Literal::Bool(bool) => self.print(bool.to_string()),
+                    Literal::Char(char) => self.print(char.to_string()),
+                    Literal::Int(char) => self.print(char.to_string()),
+                    Literal::Real(real) => self.print(real.to_string()),
+                    _ => {}
+                }
+            },
+            ExprKind::Ident(ident_expr) => {
+                self.print_symbol(ident_expr.ident_use.ident.sym);
+            },
+            ExprKind::Infix(infix) => {
+                self.visit_expr(&mut infix.lhs);
+                self.print( infix.op.sign());
+                self.visit_expr(&mut infix.rhs);
+            }
             _ => {}
         }
     }

@@ -15,8 +15,6 @@ pub trait Visitor{
     fn enter_stmt(&mut self, stmt: &mut Stmt){}
     fn exit_stmt(&mut self, stmt: &mut Stmt){}
 
-    //fn visit_ident_expr(&mut self, ident_expr: &mut IdentExpr){}
-
     fn visit_module(&mut self, module: &mut Module){
         self.enter_module(module);
         for mut item in &mut module.items{

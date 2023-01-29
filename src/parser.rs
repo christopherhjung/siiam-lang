@@ -22,6 +22,7 @@ pub struct Parser {
 impl Parser {
     fn shift(&mut self) {
         let mut new_token = self.lexer.next_token();
+        println!("{:?}", new_token);
         self.ahead[self.ahead_offset] = new_token;
         self.ahead_offset = (self.ahead_offset + 1) % LOOKAHEAD_SIZE;
     }

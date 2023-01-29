@@ -227,7 +227,7 @@ impl Visitor for TypeChecker {
                     Op::Eq | Op::Ne => {
                         self.coerce(expr, &self.prim_ty(PrimTy::Bool))
                     },
-                    Op::Add | Op::Sub => {
+                    Op::Add | Op::Sub | Op::Mul | Op::Div => {
                         let join_option_ty = self.join_option_ty(&infix.lhs.ty, &expr.ty);
                         let join_option_ty = self.join_option_ty(&join_option_ty, &infix.rhs.ty);
 
