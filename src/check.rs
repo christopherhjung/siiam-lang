@@ -48,7 +48,7 @@ impl TyTable {
 
     fn struct_ty(&mut self, ty: &ASTStructTy) -> TyRef {
         if let Some(decl) = ty.ident_use.decl {
-            self.decl_ty(decl)
+            self.decl_ty(decl).unwrap()
         } else {
             unreachable!()
         }
@@ -61,12 +61,12 @@ impl TyTable {
         }
     }
 
-    pub fn decl_ty(&mut self, decl_ptr: *const Decl) -> TyRef {
+    pub fn decl_ty(&mut self, decl_ptr: *const Decl) -> Option<TyRef> {
         let mut_decl_ptr = decl_ptr as *mut Decl;
         let decl = unsafe { &mut *mut_decl_ptr };
 
         if let Some(ty) = &decl.ty {
-            return ty.clone();
+            return Some(ty.clone());
         }
 
         match &decl.kind {
@@ -74,7 +74,7 @@ impl TyTable {
                 decl.ty = Some(Rc::new(RefCell::new(Ty::Struct(StructTy{ name: decl.ident.sym, members: Vec::new() }))));
 
                 for member in &struct_decl.members {
-                    let member_ty = self.decl_ty(member.as_ref() as *const Decl);
+                    let member_ty = self.decl_ty(member.as_ref() as *const Decl).unwrap();
                     let mut struct_ty = RefCell::borrow_mut(decl.ty.as_ref().unwrap());
 
                     if let Ty::Struct(struct_ty) = &mut *struct_ty{
@@ -82,14 +82,23 @@ impl TyTable {
                     }
                 }
 
-                decl.ty.as_ref().unwrap().clone()
-            }
+                Some(decl.ty.as_ref().unwrap().clone())
+            },
             DeclKind::MemberDecl(member_decl) => {
-                let result = self.infer(&member_decl.ast_type);
+                let result = self.infer(&member_decl.ast_ty);
                 decl.ty = Some(result.clone());
-                result
-            }
-            _ => unreachable!()
+                Some(result)
+            },
+            DeclKind::LocalDecl(local_decl) => {
+                if let Some(ast_ty) = &local_decl.ast_ty {
+                    let result = self.infer(ast_ty);
+                    decl.ty = Some(result.clone());
+                    Some(result)
+                }else{
+                    None
+                }
+            },
+            _ => None
         }
     }
 
@@ -118,9 +127,15 @@ impl TypeChecker {
         }
     }
 
-    pub fn coerce_option(&mut self, expr: &mut Expr, ty: Option<TyRef>){
+    pub fn coerce_option(&mut self, expr: &mut Expr, ty: &Option<TyRef>){
         if let Some(some_ty) = &ty{
             self.coerce(expr, some_ty);
+        }
+    }
+
+    pub fn coerce_option_decl(&mut self, decl: &mut Decl, ty: &Option<TyRef>){
+        if let Some(some_ty) = &ty{
+            self.coerce_decl(decl, some_ty);
         }
     }
 
@@ -156,7 +171,7 @@ impl TypeChecker {
         RefCell::borrow_mut(&mut self.ty_table).infer(ast_ty)
     }
 
-    pub fn decl_ty(&mut self, decl: *const Decl) -> TyRef{
+    pub fn decl_ty(&mut self, decl: *const Decl) -> Option<TyRef>{
         RefCell::borrow_mut(&mut self.ty_table).decl_ty(decl)
     }
 
@@ -192,49 +207,57 @@ impl TypeChecker {
 }
 
 impl Visitor for TypeChecker {
-    fn enter_decl(&mut self, decl: &mut Decl) {
-        match &mut decl.kind {
-            DeclKind::StructDecl(_) |
-            DeclKind::MemberDecl(_) =>{
-                self.decl_ty(decl as *const Decl);
-            },
-            DeclKind::FnDecl(fn_decl) => {
-                let ret_ty = self.infer_or_unit(&fn_decl.ret_ty);
-                /*let param_tys = Vec::new();
-                for param in fn_decl.params{
-                    param_tys.push(param.ty);
-                }*/
-
-                decl.ty = Some(Rc::new(RefCell::new(Ty::Fn(FnTy{ params: vec![], ret_ty: Some(ret_ty.clone()) }))));
-                fn_decl.body.ty = Some(ret_ty);
-            },
-            _ => return
-        }
-    }
-
     fn enter_stmt(&mut self, stmt: &mut Stmt) {
         match stmt {
             Stmt::Let(let_stmt) =>{
-                if let Some(init) = &mut let_stmt.init{
-                    if let DeclKind::LocalDecl(local_decl) = &let_stmt.local_decl.kind{
-                        if let Some(ast_ty) = &local_decl.ast_type{
-                            let ty = self.infer(ast_ty);
-                            self.coerce(init, &ty);
-                            self.coerce_decl(&mut let_stmt.local_decl, &ty);
-                        }
+                if let DeclKind::LocalDecl(local_decl) = &let_stmt.local_decl.kind {
+                    if let Some(ast_ty) = &local_decl.ast_ty {
+                        let ty = self.infer(ast_ty);
+                        self.coerce_decl(&mut let_stmt.local_decl, &ty);
                     }
+                }
+
+                if let Some(init) = &mut let_stmt.init{
+                    self.coerce_option(init, &let_stmt.local_decl.ty);
+                    self.coerce_option_decl(&mut let_stmt.local_decl, &init.ty);
                 }
             }
             Stmt::Expr(expr_stmt) =>{
                 self.visit_expr(&mut expr_stmt.expr);
             },
-            _ => return
+            _ => {}
+        }
+    }
+
+    fn visit_decl(&mut self, decl: &mut Decl) {
+        self.decl_ty(decl as *const Decl);
+        match &mut decl.kind {
+            DeclKind::StructDecl(struct_decl) => {
+                for member in &mut struct_decl.members{
+                    self.visit_decl(member);
+                }
+            },
+            DeclKind::FnDecl(fn_decl) => {
+                let mut param_tys = Vec::new();
+                for mut param in &mut fn_decl.params{
+                    self.visit_decl(param);
+                    param_tys.push(param.ty.clone().unwrap());
+                }
+
+                println!("{:?}", param_tys);
+
+                let ret_ty = self.infer_or_unit(&fn_decl.ret_ty);
+                decl.ty = Some(Rc::new(RefCell::new(Ty::Fn(FnTy{ params: param_tys, ret_ty: Some(ret_ty.clone()) }))));
+                fn_decl.body.ty = Some(ret_ty);
+
+                self.visit_expr(&mut fn_decl.body)
+            },
+            _ => {}
         }
     }
 
     fn visit_expr(&mut self, expr: &mut Expr) {
         match &mut expr.kind {
-            //Expr::Literal(lit) => self.ty_table.prim_ty(lit.
             ExprKind::Infix(infix) => {
                 match infix.op {
                     Op::And | Op::Or => {
@@ -247,6 +270,7 @@ impl Visitor for TypeChecker {
                         self.coerce(expr, &self.prim_ty(PrimTy::Bool))
                     },
                     Op::Add | Op::Sub | Op::Mul | Op::Div => {
+
                         let join_option_ty = self.join_option_ty(&expr.ty, &infix.lhs.ty );
                         let join_option_ty = self.join_option_ty(&join_option_ty, &infix.rhs.ty);
 

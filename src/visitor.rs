@@ -26,24 +26,20 @@ pub trait Visitor{
     fn visit_decl(&mut self, decl: &mut Decl){
         self.enter_decl(decl);
         match &mut decl.kind {
-            DeclKind::FnDecl( kind) => {
-                for mut param in &mut kind.params{
+            DeclKind::FnDecl(fn_decl) => {
+                for mut param in &mut fn_decl.params{
                     self.visit_decl(param);
                 }
 
-                self.visit_expr(&mut kind.body)
-            },
-            DeclKind::LocalDecl(kind) => {
-
-            },
-            DeclKind::StructDecl( kind) => {
-                for member in &mut kind.members{
+                self.visit_expr(&mut fn_decl.body)
+            }
+            DeclKind::StructDecl(struct_decl) => {
+                for member in &mut struct_decl.members{
                     self.visit_decl(member);
                 }
-            },
-            DeclKind::MemberDecl(kind) => {
-
-            },
+            }
+            DeclKind::LocalDecl(_) |
+            DeclKind::MemberDecl(_) => {},
             _ => unreachable!()
         }
         self.exit_decl(decl);

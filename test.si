@@ -4,11 +4,10 @@ struct Point{
     y : Point
 }
 
-fn main() : i64{
-    let a : i64 = 9
-    let x : i64 = a - a
-    let y : i64 = x * x
-    let zzz : bool = true
+fn main(x: i32, a: i32) : i64{
+    let a = 9
+    let x = a - a
+    let y = x * x
     y
 }
 

@@ -20,7 +20,7 @@ pub struct StructDecl {
 
 #[derive(Debug)]
 pub struct MemberDecl {
-    pub ast_type: Box<ASTTy>,
+    pub ast_ty: Box<ASTTy>,
     pub index: usize,
 }
 
@@ -33,7 +33,7 @@ pub struct FnDecl {
 
 #[derive(Debug)]
 pub struct LocalDecl {
-    pub ast_type: Option<Box<ASTTy>>,
+    pub ast_ty: Option<Box<ASTTy>>,
 }
 
 #[derive(Debug)]

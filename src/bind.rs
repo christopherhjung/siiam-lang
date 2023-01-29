@@ -91,7 +91,7 @@ impl Visitor for NameBinder {
             DeclKind::FnDecl(_) => self.insert(decl),
             DeclKind::StructDecl(_) => self.insert(decl),
             DeclKind::MemberDecl(member) => {
-                let mut ast_type : &mut ASTTy = &mut member.ast_type;
+                let mut ast_type : &mut ASTTy = &mut member.ast_ty;
                 if let ASTTy::Struct(struct_ty) = &mut ast_type{
                     let decl = self.lookup(struct_ty.ident_use.ident.sym);
                     struct_ty.ident_use.decl = decl;

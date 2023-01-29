@@ -50,8 +50,8 @@ pub fn main() {
     println!("{:#?}", module);
 
     let mut ty_table = Rc::new(RefCell::new(TyTable::new()));
-    let mut sema = TypeChecker::new(ty_table);
-    sema.visit_module(&mut module);
+    let mut checker = TypeChecker::new(ty_table);
+    checker.visit_module(&mut module);
 
     let mut printer = ProgramPrinter::new(sym_table.clone());
     printer.visit_module(&mut module);

@@ -133,21 +133,28 @@ impl Visitor for ProgramPrinter {
                 self.pop();
                 self.print("}");
                 self.nl();
-            },
-            DeclKind::MemberDecl(kind) => {
+            }
+            DeclKind::LocalDecl(_) => {
+                self.print_symbol(decl.ident.sym);
+                self.print(" : ");
+                self.print_option_ty(&decl.ty);
+            }
+            DeclKind::MemberDecl(_) => {
                 self.print_symbol(decl.ident.sym);
                 self.print(" : ");
                 self.print_option_ty(&decl.ty);
                 self.nl();
             },
-            DeclKind::FnDecl(kind) => {
+            DeclKind::FnDecl(fn_decl) => {
                 self.keyword("fn");
                 self.space();
                 self.print_symbol(decl.ident.sym);
                 self.print("(");
-
-                for mut decl in &mut kind.params{
+                let mut sep = "";
+                for mut decl in &mut fn_decl.params{
+                    self.print(sep);
                     self.visit_decl(&mut decl);
+                    sep = ", ";
                 }
                 self.print(")");
 
@@ -161,8 +168,8 @@ impl Visitor for ProgramPrinter {
                     }
                 }
 
-                self.visit_expr(&mut kind.body);
-            },
+                self.visit_expr(&mut fn_decl.body);
+            }
             _ => {}
         }
     }
@@ -176,9 +183,7 @@ impl Visitor for ProgramPrinter {
             Stmt::Let(let_stmt) =>{
                 self.keyword("let");
                 self.space();
-                self.print_symbol(let_stmt.local_decl.ident.sym);
-                self.print(" : ");
-                self.print_option_ty(&let_stmt.local_decl.ty);
+                self.visit_decl(&mut let_stmt.local_decl);
                 if let Some( init) = &mut let_stmt.init{
                     self.print(" = ");
                     self.visit_expr( init);
