@@ -50,7 +50,7 @@ impl CodeGen {
         }
     }
 */
-    pub fn map_decl(&mut self, decl: &mut Decl, val: String){
+    pub fn map_decl(&mut self, decl: &Decl, val: String){
         self.decl2ptr.insert(decl as *const Decl, val.clone());
     }
 
@@ -75,10 +75,10 @@ impl CodeGen {
         String::from(match *ty {
             Ty::Prim(prim_ty) => {
                 match prim_ty {
-                    PrimTy::Int => "i32",
-                    PrimTy::Long => "i64",
-                    PrimTy::Float => "f32",
-                    PrimTy::Double => "f64",
+                    PrimTy::I32 => "i32",
+                    PrimTy::I64 => "i64",
+                    PrimTy::F32 => "f32",
+                    PrimTy::F64 => "f64",
                     _ => panic!()
                 }
             },
@@ -142,6 +142,14 @@ impl Visitor for CodeGen {
                     instrs: Vec::new()
                 }));
                 self.current_block = Some(Rc::clone(&entry_block));
+
+                for param in &mut fn_decl.params{
+                    let ty = self.emit_ty(param.ty.as_ref().unwrap());
+                    let val = self.new_value();
+                    self.print(format!("{val} = alloca {ty}, align 8"));
+                    self.map_decl(param, val);
+                }
+
                 fnc.blocks.insert(entry_name, entry_block);
                 self.fns.insert(name, fnc);
                 self.visit_expr(&mut fn_decl.body);
@@ -161,7 +169,7 @@ impl Visitor for CodeGen {
                 let ty = self.emit_ty(let_stmt.local_decl.ty.as_ref().unwrap());
                 let val = self.new_value();
                 self.print(format!("{val} = alloca {ty}, align 8"));
-                self.map_decl(&mut *let_stmt.local_decl, val.clone());
+                self.map_decl(&let_stmt.local_decl, val.clone());
 
                 if let Some(init) = &mut let_stmt.init{
                     let init_val = self.remit(init).unwrap();

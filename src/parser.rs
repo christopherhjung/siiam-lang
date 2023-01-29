@@ -53,8 +53,12 @@ impl Parser {
         kind == self.kind()
     }
 
+    fn is(&mut self, kind: TokenKind) -> bool {
+        return kind == self.kind();
+    }
+
     fn accept(&mut self, kind: TokenKind) -> bool {
-        if kind == self.kind() {
+        if self.is(kind) {
             self.shift();
             return true;
         }
@@ -150,10 +154,10 @@ impl Parser {
             TokenKind::TypeByte => PrimTy::Byte,
             TokenKind::TypeChar => PrimTy::Char,
             TokenKind::TypeStr => PrimTy::Str,
-            TokenKind::TypeInt => PrimTy::Int,
-            TokenKind::TypeLong => PrimTy::Long,
-            TokenKind::TypeFloat => PrimTy::Float,
-            TokenKind::TypeDouble => PrimTy::Double,
+            TokenKind::TypeI32 => PrimTy::I32,
+            TokenKind::TypeI64 => PrimTy::I64,
+            TokenKind::TypeF32 => PrimTy::F32,
+            TokenKind::TypeF64 => PrimTy::F64,
             TokenKind::TypeUnit => PrimTy::Unit,
             _ => unreachable!()
         };
@@ -168,10 +172,10 @@ impl Parser {
             TokenKind::TypeByte |
             TokenKind::TypeChar |
             TokenKind::TypeStr |
-            TokenKind::TypeInt |
-            TokenKind::TypeLong |
-            TokenKind::TypeFloat |
-            TokenKind::TypeDouble |
+            TokenKind::TypeI32 |
+            TokenKind::TypeI64 |
+            TokenKind::TypeF32 |
+            TokenKind::TypeF64 |
             TokenKind::TypeUnit => {
                 ASTTy::Prim(self.prim_type())
             }
@@ -409,12 +413,17 @@ impl Parser {
         self.check_kind(TokenKind::LBrace);
         let if_branch = self.parse_block();
 
-        let mut else_branch : Option<Box<Expr>> = None;
-        if self.accept(TokenKind::Else) {
-            else_branch = Some(self.parse_block());
-        }
+        let mut else_branch = if self.accept(TokenKind::Else) {
+            Some(if self.is(TokenKind::If){
+                self.parse_if()
+            }else{
+                self.parse_block()
+            })
+        }else{
+            None
+        };
 
-        Box::new(Expr::new(ExprKind::If(IfExpr{condition, if_branch, else_branch})))
+        Box::new(Expr::new(ExprKind::If(IfExpr{condition, true_branch: if_branch, false_branch: else_branch })))
     }
 
     fn parse_decl(&mut self) -> Box<Stmt>{

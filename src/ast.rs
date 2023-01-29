@@ -84,10 +84,10 @@ pub enum PrimTy{
     Unit,
     Byte,
     Char,
-    Int,
-    Long,
-    Float,
-    Double,
+    I32,
+    I64,
+    F32,
+    F64,
     Bool
 }
 
@@ -214,8 +214,8 @@ pub struct FieldExpr{
 #[derive(Debug)]
 pub struct IfExpr {
     pub condition : Box<Expr>,
-    pub if_branch : Box<Expr>,
-    pub else_branch : Option<Box<Expr>>,
+    pub true_branch: Box<Expr>,
+    pub false_branch: Option<Box<Expr>>,
 }
 
 #[derive(Debug)]

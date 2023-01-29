@@ -64,10 +64,10 @@ impl ProgramPrinter{
             Ty::Prim(prim_ty) => {
                 match prim_ty {
                     PrimTy::Bool => self.print("bool"),
-                    PrimTy::Int => self.print("i32"),
-                    PrimTy::Long => self.print("i64"),
-                    PrimTy::Float => self.print("f32"),
-                    PrimTy::Double => self.print("f64"),
+                    PrimTy::I32 => self.print("i32"),
+                    PrimTy::I64 => self.print("i64"),
+                    PrimTy::F32 => self.print("f32"),
+                    PrimTy::F64 => self.print("f64"),
                     PrimTy::Unit => self.print("()"),
                     PrimTy::Char => self.print("char"),
                     PrimTy::Str => self.print("str"),
@@ -169,6 +169,7 @@ impl Visitor for ProgramPrinter {
                 }
 
                 self.visit_expr(&mut fn_decl.body);
+                self.nl();
             }
             _ => {}
         }
@@ -195,6 +196,19 @@ impl Visitor for ProgramPrinter {
 
     fn visit_expr(&mut self, expr: &mut Expr) {
         match &mut expr.kind {
+            ExprKind::If(if_expr) => {
+                self.keyword("if");
+                self.space();
+                self.visit_expr(&mut if_expr.condition);
+                self.visit_expr(&mut if_expr.true_branch);
+                if let Some( false_branch) = &mut if_expr.false_branch{
+                    self.keyword("else");
+                    if let ExprKind::If(_) = false_branch.kind{
+                        self.space();
+                    }
+                    self.visit_expr(false_branch);
+                }
+            }
             ExprKind::Block(block) => {
                 self.print("{");
                 self.nl();
@@ -206,8 +220,7 @@ impl Visitor for ProgramPrinter {
 
                 self.pop();
                 self.print("}");
-                self.nl();
-            },
+            }
             ExprKind::Literal(lit) => {
                 match lit {
                     Literal::Str(str) => self.print(str.to_string()),
@@ -217,7 +230,7 @@ impl Visitor for ProgramPrinter {
                     Literal::Real(real) => self.print(real.to_string()),
                     _ => {}
                 }
-            },
+            }
             ExprKind::Ident(ident_expr) => {
                 self.print_symbol(ident_expr.ident_use.ident.sym);
             },
