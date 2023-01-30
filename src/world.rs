@@ -7,7 +7,7 @@ use std::ptr::{null, null_mut};
 use std::rc::Rc;
 use sha2::{Digest, Sha256};
 use sha2::digest::Update;
-use crate::hash::Signature;
+use crate::sign::Signature;
 use crate::utils::Array;
 
 use strum::IntoEnumIterator;

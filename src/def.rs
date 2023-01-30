@@ -7,7 +7,7 @@ use std::ptr::{null, null_mut};
 use std::rc::Rc;
 use sha2::{Digest, Sha256};
 use sha2::digest::Update;
-use crate::hash::Signature;
+use crate::sign::Signature;
 use crate::utils::Array;
 
 use strum::IntoEnumIterator;
@@ -133,34 +133,11 @@ impl Deref for DefProxy{
     }
 }
 
-pub struct DefRefIterator{
-    def : DefProxy,
-    idx: usize
-}
-
-impl Iterator for DefRefIterator{
-    type Item = DefProxy;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let def = unsafe{&*self.def.ptr};
-        if self.idx < def.ops.len(){
-            None
-        }else{
-            let def_ptr = def.ops.get(self.idx);
-            let res = Some(DefProxy { world: self.def.world, ptr: *def_ptr });
-            self.idx+=1;
-            res
-        }
-    }
-}
-
 impl From<&Def> for Signature{
     fn from(def: &Def) -> Self {
         let mut hash = Sha256::new();
 
-        for i in 0 .. def.ops.len(){
-            let op_ptr = def.ops.get(i);
-
+        for op_ptr in &def.ops{
             let sign = if *op_ptr == null(){
                 Signature::zero()
             }else {

@@ -34,7 +34,7 @@ mod token;
 mod print;
 mod llvm;
 mod world;
-mod hash;
+mod sign;
 mod utils;
 mod def;
 
