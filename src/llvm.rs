@@ -70,7 +70,7 @@ impl CodeGen {
     }
 
     pub fn emit_ty(&mut self, ty_ref: &TyRef ) -> String{
-        let ty = RefCell::borrow(ty_ref);
+        let ty = &**ty_ref;
 
         String::from(match *ty {
             Ty::Prim(prim_ty) => {

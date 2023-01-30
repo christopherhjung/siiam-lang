@@ -5,11 +5,10 @@ struct Point{
 }
 
 fn main(h : i64) : i64{
-    if true{
-        9
-    }else if false{
-        6
-    }
+    let a = 9
+    let x = a - h
+    let y = x * x
+    y
 }
 
 /*

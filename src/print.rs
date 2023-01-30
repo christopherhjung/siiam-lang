@@ -58,9 +58,8 @@ impl ProgramPrinter{
         self.print(name);
     }
 
-    fn print_ty(&mut self, ty: &TyRef){
-        let ty_ref = RefCell::borrow(ty);
-        match &*ty_ref {
+    fn print_ty(&mut self, ty_ref: &TyRef){
+        match &**ty_ref {
             Ty::Prim(prim_ty) => {
                 match prim_ty {
                     PrimTy::Bool => self.print("bool"),
@@ -160,7 +159,7 @@ impl Visitor for ProgramPrinter {
 
                 if let Some(fn_ty) = &decl.ty{
                     self.print(" : ");
-                    let ty = RefCell::borrow(fn_ty);
+                    let ty = &**fn_ty;
                     if let Ty::Fn(FnTy{ret_ty: Some(ret_ty), .. }) = &*ty{
                         self.print_ty(ret_ty);
                     }else{
