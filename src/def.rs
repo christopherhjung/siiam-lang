@@ -1,70 +1,147 @@
+use std::alloc::alloc;
 use std::collections::HashMap;
+use std::ops::Index;
+use std::ptr;
 use std::ptr::{null, null_mut};
 use std::rc::Rc;
+use crate::hash::Signature;
+use crate::utils::HeapArray;
+
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 
 #[derive(Clone, Copy)]
-struct DefRef{
+pub struct DefRef{
     world: *mut World,
     ptr : *const Def
 }
 
 struct Def{
-    ops : Vec<DefRef>,
-    data : *const u8
+    ops: HeapArray<*const Def>,
+    data: HeapArray<u8>,
+    sign: Signature,
 }
 
-struct World{
-    sea : HashMap<String, Box<Def>>,
-    bot : Box<Def>
+impl DefRef {
+    fn new( world: *mut World, ptr : *const Def ) -> DefRef{
+        DefRef{ world, ptr }
+    }
+
+    pub fn op( &self, index : usize ) -> DefRef{
+        let def = unsafe{&*self.ptr};
+        let op_ptr = *def.ops.index(index);
+        DefRef::new(self.world, op_ptr)
+    }
+
+    pub fn data<T>( &self, idx : usize ) -> &T{
+        let def = unsafe{&*self.ptr};
+        let data_ptr = unsafe{def.data.get_ptr(idx)};
+        unsafe {&*(data_ptr as *const T)}
+    }
+
+    pub fn sign(&self) -> Signature{
+        let def = unsafe{&*self.ptr};
+        def.sign
+    }
+}
+
+pub struct World{
+    hash_size : usize,
+    sea : HashMap<Signature, Box<Def>>,
+    axioms : HashMap<Axiom, DefRef>
+}
+
+#[derive(EnumIter, Hash, Eq, PartialEq)]
+enum Axiom{
+    Bot, Tuple
 }
 
 impl World{
+    fn axiom( &self, ax : Axiom ) -> DefRef{
+        *self.axioms.get(&ax).unwrap()
+    }
+
     fn default(&mut self) -> DefRef{
-        DefRef{
-            world: self,
-            ptr: &*self.bot
+        self.bot()
+    }
+
+    pub fn lit_int( &mut self, val : i32 ) -> DefRef{
+        self.default()
+    }
+
+    pub fn ty_int( &mut self, width : i32 ) -> DefRef{
+        self.default()
+    }
+
+    pub fn bot( &mut self ) -> DefRef{
+        self.axiom(Axiom::Bot)
+    }
+
+    pub fn tuple( &mut self, elems: &[DefRef] ) -> DefRef{
+        self.default()
+    }
+
+    pub fn pack( &mut self, shape: DefRef, body: DefRef ) -> DefRef{
+        self.default()
+    }
+
+    pub fn extract( &mut self, tup: DefRef, index: DefRef ) -> DefRef{
+        self.default()
+    }
+
+    pub fn app( &mut self, callee: DefRef, arg: DefRef ) -> DefRef{
+        self.default()
+    }
+
+    pub fn pi( &mut self, domain: DefRef, co_domain : DefRef ) -> DefRef{
+        self.default()
+    }
+
+    pub fn lam( &mut self, ty : DefRef ) -> DefRef{
+        self.default()
+    }
+
+    pub fn var( &mut self, lam: DefRef ) -> DefRef{
+        self.default()
+    }
+
+    pub fn set_body( &mut self, lam: DefRef, body: DefRef ){
+
+    }
+
+    pub fn new() -> Box<World>{
+        let sea = HashMap::new();
+        let axioms = HashMap::new();
+
+        let mut world = Box::new(World{
+            hash_size: 32,
+            sea,
+            axioms
+        });
+
+        let mut_world_ptr = unsafe{&*world as *const _ as *mut World};
+
+        let init_sign = Signature::zero();
+
+        for axiom in Axiom::iter(){
+            let axiom_def = Box::from(Def{
+                ops: HeapArray::new(0),
+                data: HeapArray::new(0),
+                sign: Signature::random()
+            });
+
+            println!("{:?}", axiom_def.sign.toHex());
+
+            world.axioms.insert(axiom, DefRef::new(mut_world_ptr, &*axiom_def));
+            world.sea.insert(axiom_def.sign, axiom_def);
         }
-    }
 
-    fn lit_int( &mut self, val : i32 ) -> DefRef{
-        self.default()
-    }
-
-    fn ty_int( &mut self, width : i32 ) -> DefRef{
-        self.default()
-    }
-
-    fn bot( &mut self ) -> DefRef{
-        self.default()
-    }
-
-    fn tuple( &mut self, elems: &[DefRef] ) -> DefRef{
-        self.default()
-    }
-
-    fn pi( &mut self, domain: DefRef, co_domain : DefRef ) -> DefRef{
-        self.default()
-    }
-
-    fn lam( &mut self, ty : DefRef ) -> DefRef{
-        self.default()
-    }
-
-    fn var( &mut self, lam: DefRef ) -> DefRef{
-        self.default()
-    }
-
-    fn extract( &mut self, tup: DefRef, index: DefRef ) -> DefRef{
-        self.default()
-    }
-
-    fn pack( &mut self, shape: DefRef, body: DefRef ) -> DefRef{
-        self.default()
+        world
     }
 }
 
 unsafe fn test(){
-    let mut world : World = World{ sea: Default::default(), bot: Box::from(Def { ops: vec![], data: null() }) };
+    let mut world = World::new();
 
     let zero = world.lit_int(0);
     let one = world.lit_int(1);
@@ -78,7 +155,8 @@ unsafe fn test(){
     let input = world.extract(var, zero);
     let ret_pi = world.extract(var, one);
 
-    //cn.body = world.app(ret_pi, input);
+    let app = world.app(ret_pi, input);
+    world.set_body(cn, app);
 }
 
 

@@ -11,6 +11,7 @@ use crate::bind::NameBinder;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::check::{TypeChecker, TyTable};
+use crate::def::World;
 use crate::llvm::CodeGen;
 use crate::source::Source;
 use crate::sym::*;
@@ -29,6 +30,8 @@ mod token;
 mod print;
 mod llvm;
 mod def;
+mod hash;
+mod utils;
 
 pub fn main() {
     let mut sym_table = Rc::new(RefCell::new(SymTable::new()));
@@ -54,6 +57,12 @@ pub fn main() {
     code_gen.visit_module(&mut module);
 
     code_gen.emit();
+
+    let mut world = World::new();
+
+    let tup = world.lit_int(10);
+    println!("{}", tup.sign().toHex());
+
 }
 
 
