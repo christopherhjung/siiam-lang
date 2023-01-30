@@ -24,6 +24,73 @@ struct Def{
     sign: Option<Signature>,
 }
 
+impl IntoIterator for DefRef{
+    type Item = DefRef;
+    type IntoIter = DefRefIterator;
+
+    fn into_iter(self) -> Self::IntoIter {
+        DefRefIterator{
+            def: self,
+            idx: 0
+        }
+    }
+}
+
+impl IntoIterator for Def{
+    type Item = &'static Def;
+    type IntoIter = DefIterator;
+
+    fn into_iter(self) -> Self::IntoIter {
+        DefIterator{
+            def: &self as *const Def,
+            idx: 0
+        }
+    }
+}
+
+struct DefIterator{
+    def : *const Def,
+    idx: usize
+}
+
+impl Iterator for DefIterator{
+    type Item = &'static Def;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let def = unsafe{&*self.def};
+        if self.idx < def.ops.len(){
+            None
+        }else{
+            let def_ptr = def.ops.get(self.idx);
+            let res = Some(unsafe{&**def_ptr});
+            self.idx+=1;
+            res
+        }
+    }
+}
+
+
+pub struct DefRefIterator{
+    def : DefRef,
+    idx: usize
+}
+
+impl Iterator for DefRefIterator{
+    type Item = DefRef;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let def = unsafe{&*self.def.ptr};
+        if self.idx < def.ops.len(){
+            None
+        }else{
+            let def_ptr = def.ops.get(self.idx);
+            let res = Some(DefRef{ world: self.def.world, ptr: unsafe{&**def_ptr} });
+            self.idx+=1;
+            res
+        }
+    }
+}
+
 impl DefRef {
     fn zero(world: *mut World) -> DefRef{
         Self::new(world, null())
@@ -59,6 +126,11 @@ impl DefRef {
         DefRef::new(self.world, op_ptr)
     }
 
+    pub fn data_arr(&self) -> &[u8]{
+        let def = unsafe{&*self.ptr};
+        unsafe { std::slice::from_raw_parts(def.data.get_ptr(0), def.data.len()) }
+    }
+
     pub fn set_op( &self, idx : usize, op: DefRef){
         let def = unsafe{&*self.ptr};
         def.ops.set(idx, op.as_ptr())
@@ -83,15 +155,24 @@ impl DefRef {
     }
 }
 
+struct SignBuilder{}
+
+impl SignBuilder{
+    fn test(def_ref: DefRef){
+        for def in def_ref{
+
+        }
+    }
+}
+
 pub struct World{
-    hash_size : usize,
+    sign_size: usize,
     sea : HashMap<Signature, Box<Def>>,
     axioms : HashMap<Axiom, DefRef>
 }
 
 #[derive(EnumIter, Hash, Eq, PartialEq)]
 pub enum Axiom{
-    Origin,
     Bot, Tuple, Pack, Extract, App, Pi, Lam, Var,
     TypeI32
 }
@@ -187,7 +268,7 @@ impl World{
         let axioms = HashMap::new();
 
         let mut world = Box::new(World{
-            hash_size: 32,
+            sign_size: 32,
             sea,
             axioms
         });
@@ -199,15 +280,11 @@ impl World{
         });
 
         let origin_ref = DefRef::new(World::as_mut(&world), &*origin);
-        world.axioms.insert(Axiom::Origin, origin_ref);
         world.sea.insert(origin_ref.sign(), origin);
 
         let mut link = origin_ref;
 
         for axiom in Axiom::iter(){
-            if axiom == Axiom::Origin{
-                continue;
-            }
             let link_arr = Array::new(1);
             link_arr.set(0, link.as_ptr());
 
@@ -242,6 +319,8 @@ impl From<DefRef> for Signature{
 
             hash = Update::chain( hash, sign)
         }
+
+        hash = Update::chain(hash, def_ref.data_arr());
 
         let arr =  hash.finalize();
 
