@@ -4,8 +4,10 @@ use std::ops::Index;
 use std::ptr;
 use std::ptr::{null, null_mut};
 use std::rc::Rc;
+use sha2::{Digest, Sha256};
+use sha2::digest::Update;
 use crate::hash::Signature;
-use crate::utils::HeapArray;
+use crate::utils::Array;
 
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
@@ -17,20 +19,49 @@ pub struct DefRef{
 }
 
 struct Def{
-    ops: HeapArray<*const Def>,
-    data: HeapArray<u8>,
-    sign: Signature,
+    ops: Array<*const Def>,
+    data: Array<u8>,
+    sign: Option<Signature>,
 }
 
 impl DefRef {
+    fn zero(world: *mut World) -> DefRef{
+        Self::new(world, null())
+    }
+
     fn new( world: *mut World, ptr : *const Def ) -> DefRef{
         DefRef{ world, ptr }
     }
 
-    pub fn op( &self, index : usize ) -> DefRef{
+    fn as_ptr(&self) -> *const Def{
+        self.ptr
+    }
+
+    pub fn op_len(&self) -> usize{
         let def = unsafe{&*self.ptr};
-        let op_ptr = *def.ops.index(index);
+        def.ops.len()
+    }
+
+    pub fn data_len(&self) -> usize{
+        let def = unsafe{&*self.ptr};
+        def.data.len()
+    }
+
+    pub fn has(&self, idx: usize) -> bool {
+        let def = unsafe{&*self.ptr};
+        let op_ptr = *def.ops.index(idx);
+        op_ptr != null()
+    }
+
+    pub fn op( &self, idx : usize ) -> DefRef{
+        let def = unsafe{&*self.ptr};
+        let op_ptr = *def.ops.index(idx);
         DefRef::new(self.world, op_ptr)
+    }
+
+    pub fn set_op( &self, idx : usize, op: DefRef){
+        let def = unsafe{&*self.ptr};
+        def.ops.set(idx, op.as_ptr())
     }
 
     pub fn data<T>( &self, idx : usize ) -> &T{
@@ -40,8 +71,15 @@ impl DefRef {
     }
 
     pub fn sign(&self) -> Signature{
-        let def = unsafe{&*self.ptr};
-        def.sign
+        let def = unsafe{&mut *(self.ptr as *mut Def)};
+        if def.sign.is_none(){
+            def.sign = Some(Signature::zero());
+            let sign = Signature::from(*self);
+            def.sign = Some(sign);
+            sign
+        }else{
+            def.sign.unwrap()
+        }
     }
 }
 
@@ -52,13 +90,46 @@ pub struct World{
 }
 
 #[derive(EnumIter, Hash, Eq, PartialEq)]
-enum Axiom{
-    Bot, Tuple
+pub enum Axiom{
+    Origin,
+    Bot, Tuple, Pack, Extract, App, Pi, Lam, Var,
+    TypeI32
 }
 
 impl World{
-    fn axiom( &self, ax : Axiom ) -> DefRef{
+    fn as_mut(&self) -> *mut World{
+        self as *const _ as *mut World
+    }
+
+    pub fn axiom( &self, ax : Axiom ) -> DefRef{
         *self.axioms.get(&ax).unwrap()
+    }
+
+    fn new_def( &mut self, ops : Vec<DefRef> ) -> DefRef{
+        self.new_data_def(ops, Array::new(0))
+    }
+
+    fn new_data_def( &mut self, ops : Vec<DefRef>, data: Array<u8> ) -> DefRef{
+        let op_arr = Array::new(ops.len());
+        let mut i = 0;
+        for def_ref in &ops{
+            op_arr.set(i, def_ref.ptr);
+            i += 1;
+        }
+
+        let def = Box::new( Def{
+            ops: op_arr,
+            data,
+            sign: None
+        });
+
+        let def_ref = DefRef{
+            world: self.as_mut(),
+            ptr: &*def
+        };
+
+        self.sea.insert(def_ref.sign(), def);
+        def_ref
     }
 
     fn default(&mut self) -> DefRef{
@@ -77,36 +148,38 @@ impl World{
         self.axiom(Axiom::Bot)
     }
 
-    pub fn tuple( &mut self, elems: &[DefRef] ) -> DefRef{
-        self.default()
+    pub fn tuple( &mut self, mut elems: Vec<DefRef> ) -> DefRef{
+        elems.insert(0, self.axiom(Axiom::Tuple));
+        self.new_def(elems)
     }
 
     pub fn pack( &mut self, shape: DefRef, body: DefRef ) -> DefRef{
-        self.default()
+        self.new_def(vec![self.axiom(Axiom::Pack), shape, body])
     }
 
     pub fn extract( &mut self, tup: DefRef, index: DefRef ) -> DefRef{
-        self.default()
+        self.new_def(vec![self.axiom(Axiom::Extract), tup, index])
     }
 
     pub fn app( &mut self, callee: DefRef, arg: DefRef ) -> DefRef{
-        self.default()
+        self.new_def(vec![self.axiom(Axiom::App), callee, arg])
     }
 
     pub fn pi( &mut self, domain: DefRef, co_domain : DefRef ) -> DefRef{
-        self.default()
+        self.new_def(vec![self.axiom(Axiom::Pi), domain, co_domain])
     }
 
     pub fn lam( &mut self, ty : DefRef ) -> DefRef{
-        self.default()
+        self.new_def(vec![self.axiom(Axiom::Lam), ty, DefRef::zero(self.as_mut())])
     }
 
     pub fn var( &mut self, lam: DefRef ) -> DefRef{
-        self.default()
+        self.new_def(vec![self.axiom(Axiom::Var), lam])
     }
 
     pub fn set_body( &mut self, lam: DefRef, body: DefRef ){
-
+        lam.set_op(1, body);
+        //close loop
     }
 
     pub fn new() -> Box<World>{
@@ -119,44 +192,60 @@ impl World{
             axioms
         });
 
-        let mut_world_ptr = unsafe{&*world as *const _ as *mut World};
+        let origin = Box::from(Def{
+            ops: Array::new(0),
+            data: Array::new(0),
+            sign: None
+        });
 
-        let init_sign = Signature::zero();
+        let origin_ref = DefRef::new(World::as_mut(&world), &*origin);
+        world.axioms.insert(Axiom::Origin, origin_ref);
+        world.sea.insert(origin_ref.sign(), origin);
+
+        let mut link = origin_ref;
 
         for axiom in Axiom::iter(){
+            if axiom == Axiom::Origin{
+                continue;
+            }
+            let link_arr = Array::new(1);
+            link_arr.set(0, link.as_ptr());
+
             let axiom_def = Box::from(Def{
-                ops: HeapArray::new(0),
-                data: HeapArray::new(0),
-                sign: Signature::random()
+                ops: link_arr,
+                data: Array::new(0),
+                sign: None
             });
 
-            println!("{:?}", axiom_def.sign.toHex());
-
-            world.axioms.insert(axiom, DefRef::new(mut_world_ptr, &*axiom_def));
-            world.sea.insert(axiom_def.sign, axiom_def);
+            let def_ref = DefRef::new(World::as_mut(&world), &*axiom_def);
+            link = def_ref;
+            world.axioms.insert(axiom, def_ref);
+            world.sea.insert(def_ref.sign(), axiom_def);
         }
 
         world
     }
 }
 
-unsafe fn test(){
-    let mut world = World::new();
 
-    let zero = world.lit_int(0);
-    let one = world.lit_int(1);
 
-    let int_ty = world.ty_int(32);
-    let bot = world.bot();
-    let pi = world.pi(int_ty, bot);
+impl From<DefRef> for Signature{
+    fn from(def_ref: DefRef) -> Self {
+        let mut hash = Sha256::new();
 
-    let cn = world.lam(pi);
-    let var = world.var(cn);
-    let input = world.extract(var, zero);
-    let ret_pi = world.extract(var, one);
+        for i in 0 .. def_ref.op_len(){
+            let sign = if def_ref.has(i){
+                def_ref.op(i).sign()
+            }else {
+                Signature::zero()
+            };
 
-    let app = world.app(ret_pi, input);
-    world.set_body(cn, app);
+            hash = Update::chain( hash, sign)
+        }
+
+        let arr =  hash.finalize();
+
+        Signature{ data: <[u8; 32]>::from(arr) }
+    }
 }
-
 

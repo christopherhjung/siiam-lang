@@ -33,6 +33,12 @@ impl Signature {
     }
 }
 
+impl AsRef<[u8]> for Signature{
+    fn as_ref(&self) -> &[u8] {
+        &self.data as &[u8]
+    }
+}
+
 impl PartialEq for Signature {
     fn eq(&self, other: &Self) -> bool{
         self.data == other.data

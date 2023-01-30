@@ -1,5 +1,7 @@
 #![feature(hash_set_entry)]
 #![feature(let_else)]
+#![allow(incomplete_features)]
+#![feature(generic_const_exprs)]
 
 use std::borrow::BorrowMut;
 use std::cell::{Cell, RefCell};
@@ -11,7 +13,7 @@ use crate::bind::NameBinder;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::check::{TypeChecker, TyTable};
-use crate::def::World;
+use crate::def::{Axiom, World};
 use crate::llvm::CodeGen;
 use crate::source::Source;
 use crate::sym::*;
@@ -52,17 +54,29 @@ pub fn main() {
     let mut printer = ProgramPrinter::new(sym_table.clone());
     printer.visit_module(&mut module);
     println!("{}", printer.result);
-
+/*
     let mut code_gen = CodeGen::new(sym_table);
     code_gen.visit_module(&mut module);
-
-    code_gen.emit();
+    code_gen.emit();*/
 
     let mut world = World::new();
 
-    let tup = world.lit_int(10);
-    println!("{}", tup.sign().toHex());
+    let zero = world.lit_int(0);
+    let one = world.lit_int(1);
 
+    let int_ty = world.ty_int(32);
+    let bot = world.bot();
+    let pi = world.pi(int_ty, bot);
+
+    let cn = world.lam(pi);
+    let var = world.var(cn);
+    let input = world.extract(var, zero);
+    let ret_pi = world.extract(var, one);
+
+    let app = world.app(ret_pi, input);
+    world.set_body(cn, app);
+
+    println!("{}", cn.sign().toHex());
 }
 
 
