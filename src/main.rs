@@ -2,6 +2,7 @@
 #![feature(let_else)]
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
+#![feature(map_try_insert)]
 
 use std::borrow::BorrowMut;
 use std::cell::{Cell, RefCell};
@@ -13,7 +14,7 @@ use crate::bind::NameBinder;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::check::{TypeChecker, TyTable};
-use crate::def::{Axiom, World};
+use crate::world::{Axiom, World};
 use crate::llvm::CodeGen;
 use crate::source::Source;
 use crate::sym::*;
@@ -31,9 +32,10 @@ mod check;
 mod token;
 mod print;
 mod llvm;
-mod def;
+mod world;
 mod hash;
 mod utils;
+mod def;
 
 pub fn main() {
     let mut sym_table = Rc::new(RefCell::new(SymTable::new()));
@@ -68,7 +70,7 @@ pub fn main() {
     let bot = world.bot();
     let pi = world.pi(int_ty, bot);
 
-    let cn = world.lam(pi);
+    let mut cn = world.lam(pi);
     let var = world.var(cn);
     let input = world.extract(var, zero);
     let ret_pi = world.extract(var, one);
@@ -76,7 +78,7 @@ pub fn main() {
     let app = world.app(ret_pi, input);
     world.set_body(cn, app);
 
-    println!("{}", cn.sign().toHex());
+    println!("{:?}", cn.sign());
 }
 
 

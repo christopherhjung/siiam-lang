@@ -7,6 +7,10 @@ pub struct Array<T> {
 }
 
 impl<T> Array<T> {
+    pub fn empty() -> Self{
+        Self::new(0)
+    }
+
     pub fn new(len: usize) -> Self {
         let ptr = if len == 0{
             null_mut()

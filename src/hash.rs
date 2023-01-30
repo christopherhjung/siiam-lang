@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use hex::ToHex;
 use rand::{distributions::Alphanumeric, Rng};
@@ -30,6 +31,12 @@ impl Signature {
 
     pub fn zero(  ) -> Signature {
         Signature { data: [0; 32] }
+    }
+}
+
+impl Debug for Signature{
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&*self.toHex())
     }
 }
 
