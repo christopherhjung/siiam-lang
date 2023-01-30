@@ -69,3 +69,34 @@ impl<T> std::ops::IndexMut<usize> for Array<T> {
         self.get_mut(index)
     }
 }
+
+impl<'a, T> IntoIterator for &'a Array<T>{
+    type Item = &'a T;
+    type IntoIter = ArrayIterator<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        ArrayIterator{
+            idx: 0,
+            arr: &self
+        }
+    }
+}
+
+pub struct ArrayIterator<'a, T>{
+    idx: usize,
+    arr: &'a Array<T>
+}
+
+impl<'a, T> Iterator for ArrayIterator<'a, T>{
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx < self.arr.len{
+            let last_idx = self.idx;
+            self.idx = last_idx + 1;
+            Some(self.arr.get(last_idx))
+        }else{
+            None
+        }
+    }
+}

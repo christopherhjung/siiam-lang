@@ -20,6 +20,7 @@ use crate::source::Source;
 use crate::sym::*;
 use crate::visitor::Visitor;
 use crate::print::ProgramPrinter;
+use crate::utils::Array;
 
 mod lexer;
 mod source;

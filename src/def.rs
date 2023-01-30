@@ -148,18 +148,9 @@ impl DefProxy {
     }
 
     pub fn sign(&mut self) -> Option<Signature>{
-        /*
-        if def.sign.is_none(){
-            def.sign = Some(Signature::zero());
-            let sign = Signature::from(*self);
-            def.sign = Some(sign);
-            sign
-        }else{
-            def.sign.unwrap()
-        }*/
-        let def = unsafe{&mut *(self.ptr as *mut Def)};
         let mut w = unsafe{&mut *self.world};
         w.finalize(self);
+        let def = unsafe{&*self.ptr};
         def.sign
     }
 }
@@ -171,7 +162,6 @@ impl Deref for DefProxy{
         unsafe {&*self.ptr}
     }
 }
-
 
 impl Iterator for DefIterator{
     type Item = &'static Def;
@@ -188,7 +178,6 @@ impl Iterator for DefIterator{
         }
     }
 }
-
 
 pub struct DefRefIterator{
     def : DefProxy,
@@ -218,5 +207,35 @@ impl SignBuilder{
         for def in def_ref{
 
         }
+    }
+}
+
+impl From<&Def> for Signature{
+    fn from(def: &Def) -> Self {
+        let mut hash = Sha256::new();
+
+        for i in 0 .. def.ops.len(){
+            let op_ptr = def.ops.get(i);
+
+            let sign = if *op_ptr == null(){
+                Signature::zero()
+            }else {
+                let op = unsafe{&**op_ptr};
+                if let Some(sign) = op.sign{
+                    sign
+                }else{
+                    Signature::zero()
+                }
+            };
+
+            hash = Update::chain( hash, sign)
+        }
+
+        let data_arr = unsafe{std::slice::from_raw_parts(def.data.get_ptr(0), def.data.len())};
+        hash = Update::chain(hash, data_arr);
+
+        let arr =  hash.finalize();
+
+        Signature{ data: <[u8; 32]>::from(arr) }
     }
 }
