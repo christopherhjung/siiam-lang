@@ -51,36 +51,6 @@ impl Def{
     }
 }
 
-impl IntoIterator for DefProxy {
-    type Item = DefProxy;
-    type IntoIter = DefRefIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        DefRefIterator{
-            def: self,
-            idx: 0
-        }
-    }
-}
-
-impl IntoIterator for Def{
-    type Item = &'static Def;
-    type IntoIter = DefIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        DefIterator{
-            def: &self as DefPtr,
-            idx: 0
-        }
-    }
-}
-
-pub struct DefIterator{
-    def : DefPtr,
-    idx: usize
-}
-
-
 #[derive(Clone, Copy)]
 pub struct DefProxy {
     pub world: *mut World,
@@ -163,22 +133,6 @@ impl Deref for DefProxy{
     }
 }
 
-impl Iterator for DefIterator{
-    type Item = &'static Def;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let def = unsafe{&*self.def};
-        if self.idx < def.ops.len(){
-            None
-        }else{
-            let def_ptr = def.ops.get(self.idx);
-            let res = Some(unsafe{&**def_ptr});
-            self.idx+=1;
-            res
-        }
-    }
-}
-
 pub struct DefRefIterator{
     def : DefProxy,
     idx: usize
@@ -196,16 +150,6 @@ impl Iterator for DefRefIterator{
             let res = Some(DefProxy { world: self.def.world, ptr: *def_ptr });
             self.idx+=1;
             res
-        }
-    }
-}
-
-struct SignBuilder{}
-
-impl SignBuilder{
-    fn test(def_ref: DefProxy){
-        for def in def_ref{
-
         }
     }
 }
