@@ -1,29 +1,31 @@
 use std::alloc::alloc;
-use std::cell::{RefCell, RefMut};
+use std::cell::{RefCell, RefMut, UnsafeCell};
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
-use std::ops::{Deref, Index};
+use std::ops::{Deref, DerefMut, Index};
 use std::ptr;
 use std::ptr::{null, null_mut};
 use std::rc::Rc;
 use sha2::{Digest, Sha256};
 use sha2::digest::Update;
-use crate::sign::Signature;
+use crate::sign::{AcyclicSigner, CyclicSigner, Signature};
 use crate::array::Array;
 
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
-use crate::def::{Def, DefProxy, DefPtr, Variant};
+use crate::def::{Def, DefProxy, DefPtr, Mode};
+use crate::utils::UnsafeMut;
 
 pub struct World{
     sign_size: usize,
     sea : HashMap<Signature, Box<Def>>,
     pending : HashMap<DefPtr, Box<Def>>,
-    axioms : HashMap<Axiom, DefPtr>
+    axioms : HashMap<Axiom, DefPtr>,
+    axioms_rev : HashMap<DefPtr, Axiom>
 }
 
-#[derive(EnumIter, Hash, Eq, PartialEq)]
+#[derive(EnumIter, Hash, Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Axiom{
     Bot, Tuple, Pack, Extract, App, Pi, Lam, Var,
     TypeI32
@@ -47,119 +49,19 @@ impl DepCheck {
             return false;
         }
 
-        for def_ptr in DefProxy::from(current).ops() {
-            if self.visited.insert(*def_ptr){
-                if !self.valid_impl(*def_ptr){
-                    return false
-                }
+        if !self.visited.insert(current){
+            return true;
+        }
+
+        for dep_ptr in DefProxy::from(current).ops() {
+            if !self.valid_impl(*dep_ptr){
+                return false
             }
         }
 
         return true
     }
 }
-
-
-pub struct SignNode{
-    index : usize,
-    low_link : usize,
-    sign : Signature
-}
-
-pub struct Signer{
-    index: usize,
-    world: *mut World,
-    nodes: HashMap<DefPtr, Rc<RefCell<SignNode>>>
-}
-
-impl Signer {
-    pub fn sign(proxy: DefProxy){
-        let mut signer = Signer {
-            index: 0,
-            world: proxy.world,
-            nodes: HashMap::new()
-        };
-
-        signer.discover(proxy.ptr)
-    }
-
-    fn node(&mut self, ptr: DefPtr) -> Rc<RefCell<SignNode>>{
-        let node = match self.nodes.entry(ptr) {
-            Occupied(entry) => entry.get().clone(),
-            Vacant(entry) => {
-                let last_idx = self.index;
-                self.index = last_idx + 1;
-
-                let def = unsafe{&*ptr};
-                let sign = if let Some(sign) = def.sign{
-                    sign
-                }else{
-                    Signature::zero()
-                };
-
-                entry.insert(
-                    Rc::new(
-                        RefCell::new(
-                            SignNode{
-                                index: last_idx,
-                                low_link: last_idx,
-                                sign
-                            })
-                    )
-                ).clone()
-            }
-        };
-
-        node
-    }
-
-    fn discover(&mut self, curr: DefPtr){
-        if self.nodes.contains_key(&curr){
-            return
-        }
-
-        let curr_rc_node = self.node(curr);
-
-        for dep_ptr in DefProxy::from(curr).ops() {
-            self.discover(*dep_ptr);
-
-            let dep_rc_node = self.node(*dep_ptr);
-            let mut curr_node = RefCell::borrow_mut(&curr_rc_node);
-            let dep_node = RefCell::borrow(&dep_rc_node);
-            if dep_node.index < curr_node.index{
-                curr_node.low_link = min(curr_node.low_link, dep_node.index);
-            }
-        }
-
-        let mut curr_node = RefCell::borrow(&curr_rc_node);
-        if curr_node.index == curr_node.low_link{
-            println!("cycle begin");
-            let index = curr_node.index;
-            self.test(curr, index, true);
-            println!("cycle end");
-        }
-    }
-
-    fn test(&mut self, curr: DefPtr, index: usize, init: bool){
-        let curr_rc_node = self.node(curr);
-        let mut curr_node = RefCell::borrow(&curr_rc_node);
-
-        if curr_node.low_link != index {
-            return
-        }
-
-        println!("{:?} {:?}", curr_node.sign, curr);
-
-        if curr_node.low_link == curr_node.low_link && !init {
-            return
-        }
-
-        for dep_ptr in DefProxy::from(curr).ops() {
-            self.test(*dep_ptr, index, false)
-        }
-    }
-}
-
 
 impl World{
     fn as_mut(&self) -> *mut World{
@@ -185,15 +87,15 @@ impl World{
         let mut def = Def::new_boxed(ops, data);
 
         let def_ptr : DefPtr = &*def;
-        if def.variant == Variant::Pending{
+        let mut proxy = self.new_def_proxy(def_ptr);
+        if def.mode == Mode::Pending{
             self.pending.insert(def_ptr, def);
         }else{
-            let sign = Signature::from(&*def);
-            def.sign = Some(sign);
-            self.sea.insert(sign, def);
+            let signed = proxy.sign();
+            self.sea.insert(proxy.sign().unwrap(), def);
         }
 
-        self.new_def_proxy(def_ptr)
+        proxy
     }
 
     pub fn finalize(&mut self, proxy: &mut DefProxy){
@@ -201,17 +103,20 @@ impl World{
             return
         }
 
-        Signer::sign(*proxy);
-        //calc signature!!
-        //let sign = Signature::from(&*def);
-        //def.sign = Some(sign);
+        if proxy.mode == Mode::Constructed{
+            AcyclicSigner::sign(proxy);
+        }else{
+            CyclicSigner::sign(*proxy);
+        }
     }
 
-    pub fn sign(&mut self, proxy: &mut DefProxy){
-        if let Some(mut def) = self.pending.remove(&mut proxy.ptr){
-            match self.sea.entry(def.sign.unwrap()) {
-                Occupied(entry) => { proxy.ptr = &**entry.get();},
-                Vacant(entry) => {entry.insert(def);}
+    pub fn sign(&mut self, proxy: DefProxy, sign: &Signature) -> DefProxy{
+        if let Some(mut def) = self.pending.remove(&proxy.ptr){
+            def.sign = Some(*sign);
+            def.mode = Mode::Constructed;
+            match self.sea.entry(*sign) {
+                Occupied(entry) =>  self.new_def_proxy(&**entry.get()),
+                Vacant(entry) => self.new_def_proxy(&**entry.insert(def)),
             }
         }else{
             panic!()
@@ -268,14 +173,12 @@ impl World{
     }
 
     pub fn new_boxed() -> Box<World>{
-        let sea = HashMap::new();
-        let axioms = HashMap::new();
-
         let mut world = Box::new(World{
             sign_size: 32,
             pending: HashMap::new(),
-            sea,
-            axioms
+            sea : HashMap::new(),
+            axioms : HashMap::new(),
+            axioms_rev: HashMap::new()
         });
 
         let origin = world.new_def(Vec::new());
@@ -287,6 +190,7 @@ impl World{
             let axiom_ref = world.new_def(link_arr);
             link = axiom_ref.ptr;
             world.axioms.insert(axiom, axiom_ref.ptr);
+            world.axioms_rev.insert(axiom_ref.ptr, axiom);
         }
 
         world

@@ -37,6 +37,7 @@ mod world;
 mod sign;
 mod array;
 mod def;
+mod utils;
 
 pub fn main() {
     let mut sym_table = Rc::new(RefCell::new(SymTable::new()));
@@ -63,24 +64,26 @@ pub fn main() {
     code_gen.emit();*/
 
     let mut world = World::new_boxed();
-
+/*
     let zero = world.lit_int(0);
     let one = world.lit_int(1);
 
     let int_ty = world.ty_int(32);
     let bot = world.bot();
-    let pi = world.pi(int_ty, bot);
+    let pi = world.pi(int_ty, bot);*/
 
-    let mut cn = world.lam(pi);
+    let bot = world.bot();
+    let mut cn = world.lam(bot);
     let var = world.var(cn);
-
-    //let input = world.extract(var, zero);
-    //let ret_pi = world.extract(var, one);
-
-    //let app = world.app(ret_pi, input);
     world.set_body(cn, var);
 
-    println!("{:?}", DepCheck::valid(cn));
+    println!("{:?}", cn.sign());
+
+    let bot2 = world.bot();
+    let mut cn2 = world.lam(bot2);
+    let var2 = world.var(cn2);
+    world.set_body(cn2, var2);
+
     println!("{:?}", cn.sign());
 }
 

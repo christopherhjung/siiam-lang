@@ -17,7 +17,7 @@ use crate::World;
 pub type DefPtr = *const Def;
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub enum Variant{
+pub enum Mode {
     Constructed, Pending
 }
 
@@ -26,18 +26,18 @@ pub struct Def{
     pub ops: Array<DefPtr>,
     pub data: Array<u8>,
     pub sign: Option<Signature>,
-    pub variant: Variant
+    pub mode: Mode
 }
 
 impl Def{
     pub fn new_boxed(ops : Vec<DefProxy>, data: Array<u8> ) -> Box<Def>{
         let op_arr = Array::new(ops.len());
         let mut i = 0;
-        let mut variant = Variant::Constructed;
+        let mut variant = Mode::Constructed;
         for def_ref in &ops{
             op_arr.set(i, def_ref.ptr);
-            if def_ref.ptr == null() || def_ref.variant() == Variant::Pending{
-                variant = Variant::Pending;
+            if def_ref.ptr == null() || def_ref.variant() == Mode::Pending{
+                variant = Mode::Pending;
             }
             i += 1;
         }
@@ -46,7 +46,7 @@ impl Def{
             ops: op_arr,
             data,
             sign: None,
-            variant
+            mode: variant
         })
     }
 }
@@ -70,9 +70,9 @@ impl DefProxy {
         DefProxy { world, ptr }
     }
 
-    fn variant(&self) -> Variant{
+    fn variant(&self) -> Mode {
         let def = unsafe{&*self.ptr};
-        def.variant
+        def.mode
     }
 
     fn as_ptr(&self) -> DefPtr{
@@ -134,33 +134,5 @@ impl Deref for DefProxy{
 
     fn deref(&self) -> &Self::Target {
         unsafe {&*self.ptr}
-    }
-}
-
-impl From<&Def> for Signature{
-    fn from(def: &Def) -> Self {
-        let mut hash = Sha256::new();
-
-        for op_ptr in &def.ops{
-            let sign = if *op_ptr == null(){
-                Signature::zero()
-            }else {
-                let op = unsafe{&**op_ptr};
-                if let Some(sign) = op.sign{
-                    sign
-                }else{
-                    Signature::zero()
-                }
-            };
-
-            hash = Update::chain( hash, sign)
-        }
-
-        let data_arr = unsafe{std::slice::from_raw_parts(def.data.get_ptr(0), def.data.len())};
-        hash = Update::chain(hash, data_arr);
-
-        let arr =  hash.finalize();
-
-        Signature{ data: <[u8; 32]>::from(arr) }
     }
 }
