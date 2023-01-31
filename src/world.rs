@@ -1,4 +1,6 @@
 use std::alloc::alloc;
+use std::cell::{RefCell, RefMut};
+use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::ops::{Deref, Index};
@@ -8,7 +10,7 @@ use std::rc::Rc;
 use sha2::{Digest, Sha256};
 use sha2::digest::Update;
 use crate::sign::Signature;
-use crate::utils::Array;
+use crate::array::Array;
 
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
@@ -26,6 +28,138 @@ pub enum Axiom{
     Bot, Tuple, Pack, Extract, App, Pi, Lam, Var,
     TypeI32
 }
+
+pub struct DepCheck {
+    visited: HashSet<DefPtr>
+}
+
+impl DepCheck {
+    pub fn valid(proxy: DefProxy) -> bool{
+        let mut check = DepCheck {
+            visited: HashSet::new()
+        };
+
+        check.valid_impl(proxy.ptr)
+    }
+
+    fn valid_impl( &mut self, current: DefPtr) -> bool{
+        if current == null(){
+            return false;
+        }
+
+        for def_ptr in DefProxy::from(current).ops() {
+            if self.visited.insert(*def_ptr){
+                if !self.valid_impl(*def_ptr){
+                    return false
+                }
+            }
+        }
+
+        return true
+    }
+}
+
+
+pub struct SignNode{
+    index : usize,
+    low_link : usize,
+    sign : Signature
+}
+
+pub struct Signer{
+    index: usize,
+    world: *mut World,
+    nodes: HashMap<DefPtr, Rc<RefCell<SignNode>>>
+}
+
+impl Signer {
+    pub fn sign(proxy: DefProxy){
+        let mut signer = Signer {
+            index: 0,
+            world: proxy.world,
+            nodes: HashMap::new()
+        };
+
+        signer.discover(proxy.ptr)
+    }
+
+    fn node(&mut self, ptr: DefPtr) -> Rc<RefCell<SignNode>>{
+        let node = match self.nodes.entry(ptr) {
+            Occupied(entry) => entry.get().clone(),
+            Vacant(entry) => {
+                let last_idx = self.index;
+                self.index = last_idx + 1;
+
+                let def = unsafe{&*ptr};
+                let sign = if let Some(sign) = def.sign{
+                    sign
+                }else{
+                    Signature::zero()
+                };
+
+                entry.insert(
+                    Rc::new(
+                        RefCell::new(
+                            SignNode{
+                                index: last_idx,
+                                low_link: last_idx,
+                                sign
+                            })
+                    )
+                ).clone()
+            }
+        };
+
+        node
+    }
+
+    fn discover(&mut self, curr: DefPtr){
+        if self.nodes.contains_key(&curr){
+            return
+        }
+
+        let curr_rc_node = self.node(curr);
+
+        for dep_ptr in DefProxy::from(curr).ops() {
+            self.discover(*dep_ptr);
+
+            let dep_rc_node = self.node(*dep_ptr);
+            let mut curr_node = RefCell::borrow_mut(&curr_rc_node);
+            let dep_node = RefCell::borrow(&dep_rc_node);
+            if dep_node.index < curr_node.index{
+                curr_node.low_link = min(curr_node.low_link, dep_node.index);
+            }
+        }
+
+        let mut curr_node = RefCell::borrow(&curr_rc_node);
+        if curr_node.index == curr_node.low_link{
+            println!("cycle begin");
+            let index = curr_node.index;
+            self.test(curr, index, true);
+            println!("cycle end");
+        }
+    }
+
+    fn test(&mut self, curr: DefPtr, index: usize, init: bool){
+        let curr_rc_node = self.node(curr);
+        let mut curr_node = RefCell::borrow(&curr_rc_node);
+
+        if curr_node.low_link != index {
+            return
+        }
+
+        println!("{:?} {:?}", curr_node.sign, curr);
+
+        if curr_node.low_link == curr_node.low_link && !init {
+            return
+        }
+
+        for dep_ptr in DefProxy::from(curr).ops() {
+            self.test(*dep_ptr, index, false)
+        }
+    }
+}
+
 
 impl World{
     fn as_mut(&self) -> *mut World{
@@ -62,12 +196,21 @@ impl World{
         self.new_def_proxy(def_ptr)
     }
 
-    pub fn finalize(&mut self, def_ref : &mut DefProxy){
-        if let Some(mut def) = self.pending.remove(&mut def_ref.ptr){
-            let sign = Signature::from(&*def);
-            def.sign = Some(sign);
-            match self.sea.entry(sign) {
-                Occupied(entry) => {def_ref.ptr = &**entry.get();},
+    pub fn finalize(&mut self, proxy: &mut DefProxy){
+        if proxy.sign.is_some() || !DepCheck::valid(*proxy){
+            return
+        }
+
+        Signer::sign(*proxy);
+        //calc signature!!
+        //let sign = Signature::from(&*def);
+        //def.sign = Some(sign);
+    }
+
+    pub fn sign(&mut self, proxy: &mut DefProxy){
+        if let Some(mut def) = self.pending.remove(&mut proxy.ptr){
+            match self.sea.entry(def.sign.unwrap()) {
+                Occupied(entry) => { proxy.ptr = &**entry.get();},
                 Vacant(entry) => {entry.insert(def);}
             }
         }else{
@@ -121,11 +264,10 @@ impl World{
     }
 
     pub fn set_body(&mut self, lam: DefProxy, body: DefProxy){
-        lam.set_op(1, body);
-        //close loop
+        lam.set_op(2, body);
     }
 
-    pub fn new() -> Box<World>{
+    pub fn new_boxed() -> Box<World>{
         let sea = HashMap::new();
         let axioms = HashMap::new();
 
@@ -136,14 +278,12 @@ impl World{
             axioms
         });
 
-        let origin = Def::new_boxed(Vec::new(), Array::empty());
-
-        let origin_ref = world.new_def(Vec::new());
-        let mut link = origin_ref.ptr;
+        let origin = world.new_def(Vec::new());
+        let mut link = origin.ptr;
 
         for axiom in Axiom::iter(){
             let mut link_arr = Vec::new();
-            link_arr.push( DefProxy::no_world(link));
+            link_arr.push( DefProxy::from(link));
             let axiom_ref = world.new_def(link_arr);
             link = axiom_ref.ptr;
             world.axioms.insert(axiom, axiom_ref.ptr);

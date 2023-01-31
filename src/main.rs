@@ -14,13 +14,13 @@ use crate::bind::NameBinder;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::check::{TypeChecker, TyTable};
-use crate::world::{Axiom, World};
+use crate::world::{Axiom, DepCheck, World};
 use crate::llvm::CodeGen;
 use crate::source::Source;
 use crate::sym::*;
 use crate::visitor::Visitor;
 use crate::print::ProgramPrinter;
-use crate::utils::Array;
+use crate::array::Array;
 
 mod lexer;
 mod source;
@@ -35,7 +35,7 @@ mod print;
 mod llvm;
 mod world;
 mod sign;
-mod utils;
+mod array;
 mod def;
 
 pub fn main() {
@@ -62,7 +62,7 @@ pub fn main() {
     code_gen.visit_module(&mut module);
     code_gen.emit();*/
 
-    let mut world = World::new();
+    let mut world = World::new_boxed();
 
     let zero = world.lit_int(0);
     let one = world.lit_int(1);
@@ -73,12 +73,14 @@ pub fn main() {
 
     let mut cn = world.lam(pi);
     let var = world.var(cn);
-    let input = world.extract(var, zero);
-    let ret_pi = world.extract(var, one);
 
-    let app = world.app(ret_pi, input);
-    world.set_body(cn, app);
+    //let input = world.extract(var, zero);
+    //let ret_pi = world.extract(var, one);
 
+    //let app = world.app(ret_pi, input);
+    world.set_body(cn, var);
+
+    println!("{:?}", DepCheck::valid(cn));
     println!("{:?}", cn.sign());
 }
 

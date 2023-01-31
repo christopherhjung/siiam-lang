@@ -8,7 +8,7 @@ use std::rc::Rc;
 use sha2::{Digest, Sha256};
 use sha2::digest::Update;
 use crate::sign::Signature;
-use crate::utils::Array;
+use crate::array::Array;
 
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
@@ -16,7 +16,7 @@ use crate::World;
 
 pub type DefPtr = *const Def;
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum Variant{
     Constructed, Pending
 }
@@ -62,7 +62,7 @@ impl DefProxy {
         Self::new(world, null())
     }
 
-    pub fn no_world(ptr : DefPtr) -> DefProxy {
+    pub fn from(ptr : DefPtr) -> DefProxy {
         Self::new(null_mut(), ptr)
     }
 
@@ -93,6 +93,10 @@ impl DefProxy {
         let def = unsafe{&*self.ptr};
         let op_ptr = *def.ops.index(idx);
         op_ptr != null()
+    }
+
+    pub fn ops(&self) -> &Array<DefPtr>{
+        &self.ops
     }
 
     pub fn op( &self, idx : usize ) -> DefProxy {

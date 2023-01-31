@@ -16,7 +16,7 @@ impl<T> Array<T> {
             null_mut()
         }else{
             unsafe {
-                let layout = Layout::from_size_align_unchecked(len, std::mem::size_of::<T>());
+                let layout = Layout::from_size_align_unchecked(len * std::mem::size_of::<T>(), std::mem::size_of::<usize>());
                 alloc(layout) as *mut T
             }
         };
@@ -31,13 +31,16 @@ impl<T> Array<T> {
         assert!(idx < self.len);
         unsafe { &*(self.ptr.add(idx)) }
     }
+
     pub fn get_mut(&self, idx: usize) -> &mut T {
         assert!(idx < self.len);
         unsafe { &mut *(self.ptr.add(idx)) }
     }
+
     pub fn set(&self, idx: usize, val : T){
         *self.get_mut(idx) = val;
     }
+
     pub fn len(&self) -> usize {
         self.len
     }
