@@ -8,6 +8,7 @@ use std::borrow::BorrowMut;
 use std::cell::{Cell, RefCell};
 use std::ptr;
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 use crate::ast::{Decl, Module};
 use crate::bind::NameBinder;
@@ -21,6 +22,7 @@ use crate::sym::*;
 use crate::visitor::Visitor;
 use crate::print::ProgramPrinter;
 use crate::array::Array;
+
 
 mod lexer;
 mod source;
@@ -41,29 +43,41 @@ mod utils;
 
 
 pub fn main() {
+
     let mut sym_table = Rc::new(RefCell::new(SymTable::new()));
+
     let mut source = Source::new(String::from("test.si"));
     let mut lexer = Lexer::new(source, sym_table.clone());
 
+    let start_parse = Instant::now();
     let mut parser = Parser::new(lexer, sym_table.clone());
     let mut module = parser.parse_module();
+    let duration_parse = start_parse.elapsed();
+    println!("Parser: {:?}", duration_parse);
 
+    let start_parse = Instant::now();
     let mut binder = NameBinder::new();
     binder.resolve(&mut module);
-    println!("{:#?}", module);
+    let duration_parse = start_parse.elapsed();
+    println!("Binder: {:?}", duration_parse);
 
     let mut ty_table = Rc::new(RefCell::new(TyTable::new()));
+
+    let start_parse = Instant::now();
     let mut checker = TypeChecker::new(ty_table);
     checker.visit_module(&mut module);
+    let duration_parse = start_parse.elapsed();
+    println!("Checker: {:?}", duration_parse);
 
-    let mut printer = ProgramPrinter::new(sym_table.clone());
-    printer.visit_module(&mut module);
-    println!("{}", printer.result);
+    //let mut printer = ProgramPrinter::new(sym_table.clone());
+    //printer.visit_module(&mut module);
+    //println!("{}", printer.result);
 /*
     let mut code_gen = CodeGen::new(sym_table);
     code_gen.visit_module(&mut module);
     code_gen.emit();*/
 
+    let start = Instant::now();
     let mut world = World::new();
 /*
     let zero = world.lit_int(0);
@@ -73,32 +87,48 @@ pub fn main() {
     let bot = world.bot();
     let pi = world.pi(int_ty, bot);*/
 
+    /*
+    let builder = world.builder();
+
+    let bot = builder.bot();
+    let mut cn = builder.lam(&bot);
+    let var = builder.var(&cn);
+    builder.set_body(&cn, &var);
+    let a = builder.construct(cn);*/
+
+
     let bot = world.bot();
     let mut cn = world.lam(&bot);
     let var = world.var(&cn);
     world.set_body(&cn, &var);
     cn = cn.construct();
-    println!("{:?}", cn.sign());
+
 
     let bot2 = world.bot();
     let mut cn2 = world.lam(&bot2);
-    let var2 = world.lam(&bot2);
+    let var2 = world.var(&cn2);
     world.set_body(&cn2, &var2);
-    world.set_body(&var2, &cn2);
     cn2 = cn2.construct();
-    //println!("{:?}", cn2.sign());
 
-    //println!("{:?}", cn2.link);
+    println!("-----");
+    println!("{:?}", cn.sign());
+    println!("{:?}", cn2.sign());
+    println!("-----");
+    println!("-----");
+    println!("{:?}", var.sign());
+    println!("{:?}", var2.sign());
+    println!("-----");
+
+    println!("{:?} {:?}", var.link, var2.link);
+    println!("{:?} {:?}", cn.link, cn2.link);
 
     let [ty, body] = cn2.args();
-
-    println!("{:?} {:?}", ty.link, body.link);
-    println!("{:?} {:?}", bot2.link, var2.link);
-
-
     let [a, b] = world.construct([&cn2, &cn]);
 
-    println!("sss")
+    println!("sss");
+    let duration = start.elapsed();
+    println!("Time elapsed in expensive_function() is: {:?}", duration);
+
 }
 
 

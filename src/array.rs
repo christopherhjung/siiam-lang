@@ -45,6 +45,16 @@ impl<T> Array<T> {
     }
 }
 
+impl<T : Copy> Clone for Array<T>{
+    fn clone(&self) -> Self {
+        let new = Array::new(self.len);
+        for idx in 0 .. self.len{
+           new.set(idx, *self.get(idx));
+        }
+        new
+    }
+}
+
 
 impl<T> Drop for Array<T> {
     fn drop(&mut self) {

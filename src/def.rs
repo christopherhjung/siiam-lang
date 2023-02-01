@@ -82,7 +82,7 @@ pub struct Def {
 }
 
 impl DefModel {
-    pub fn new_boxed(ops : Vec<DefLink>, data: Array<u8> ) -> Box<DefModel>{
+    pub fn new_boxed(ops : Array<DefLink>, data: Array<u8> ) -> Box<DefModel>{
         let mut pending = false;
         for def_ref in &ops{
             if def_ref.is_null() || def_ref.kind == DefKind::Pending{
@@ -91,7 +91,7 @@ impl DefModel {
         }
 
         let mut res = Box::new( DefModel {
-            ops: Array::from(ops),
+            ops,
             data,
             kind: DefKind::Pending
         });
@@ -129,7 +129,7 @@ impl Def {
         unsafe {
             for idx in offset .. self.ops.len(){
                 ptr::write(
-                    ptr.add(idx),
+                    ptr.add(idx - offset),
                     Def::new(&self.world, *self.ops.get(idx))
                 );
             }

@@ -3,6 +3,7 @@ use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
+use std::mem::MaybeUninit;
 use hex::ToHex;
 use rand::{distributions::Alphanumeric, Rng};
 use sha2::{Digest, Sha256, Sha384, Sha512};
@@ -106,7 +107,8 @@ pub struct SignNode{
 pub struct CyclicSigner<'a> {
     index: usize,
     world: &'a mut WorldImpl,
-    nodes: HashMap<DefLink, Box<SignNode>>
+    nodes: HashMap<DefLink, Box<SignNode>>,
+    link: DefLink
 }
 
 impl<'a> CyclicSigner<'a> {
@@ -114,36 +116,34 @@ impl<'a> CyclicSigner<'a> {
         let mut signer = CyclicSigner {
             index: 0,
             world,
-            nodes: HashMap::new()
+            nodes: HashMap::new(),
+            link
         };
 
         signer.discover(link);
-        link
+        signer.link
+    }
+
+    fn insert(&mut self, ptr: DefLink){
+        if !self.nodes.contains_key(&ptr){
+            let last_idx = self.index;
+            self.index = last_idx + 1;
+            self.nodes.insert(ptr,
+                  Box::new(
+                      SignNode{
+                          index: last_idx,
+                          low_link: last_idx,
+                          closed : false,
+                          signs : [Signature::zero(); 2]
+                      }
+                  )
+            );
+        }
     }
 
     fn node(&mut self, ptr: DefLink) -> UnsafeMut<SignNode>{
-        let node = match self.nodes.entry(ptr) {
-            Occupied(entry) =>
-                UnsafeMut::from(entry.get()),
-            Vacant(entry) => {
-                let last_idx = self.index;
-                self.index = last_idx + 1;
-
-                let b = entry.insert(
-                    Box::new(
-                        SignNode{
-                            index: last_idx,
-                            low_link: last_idx,
-                            closed : false,
-                            signs : [Signature::zero(); 2]
-                        })
-                );
-
-                UnsafeMut::from(b)
-            }
-        };
-
-        node
+        self.insert(ptr);
+        UnsafeMut::from(self.nodes.get(&ptr).unwrap())
     }
 
     fn discover(&mut self, curr: DefLink) -> bool{
@@ -151,8 +151,7 @@ impl<'a> CyclicSigner<'a> {
             return true;
         }
 
-        let curr_def = unsafe{&*curr};
-        if let DefKind::Constructed(_) = curr_def.kind {
+        if let DefKind::Constructed(_) = curr.kind {
             return false;
         }
 
@@ -174,10 +173,8 @@ impl<'a> CyclicSigner<'a> {
         return true;
     }
 
-    fn sign_node(&mut self, def_ptr : DefLink, slot: usize){
-        let def = unsafe{&*def_ptr};
-        let mut node = self.node(def_ptr);
-
+    fn sign_node(&mut self, def : DefLink, slot: usize){
+        let mut node = self.node(def);
         let mut hash = Sha256::new();
 
         for op_ptr in &def.ops{
@@ -209,15 +206,23 @@ impl<'a> CyclicSigner<'a> {
             }
         }
 
-        println!("----------------------- {}", len);
-        for def_ptr in &list{
-            let node = self.node(*def_ptr);
+        /*
+        let mut map = HashMap::<DefLink, MaybeUninit<Box<Def>>>::new();
 
-            //w.get_or_insert(def_ptr, node.signs[len % 2]);
+        for def in &list{
+            map.insert(*def, MaybeUninit::uninit());
+        }*/
 
-            println!("{:?}", node.signs[len % 2]);
+        for def in &list{
+            let node = self.node(*def);
+            let sign = &node.signs[len % 2];
+
+            let link = self.world.sign(*def, sign);
+
+            if self.link == curr{
+                self.link = link;
+            }
         }
-        println!("-----------------------");
     }
 
     fn collect(&mut self, curr: DefLink, list: &mut Vec<DefLink>){

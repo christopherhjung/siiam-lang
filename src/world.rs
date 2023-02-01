@@ -64,8 +64,11 @@ impl WorldImpl {
     }
 
     fn new_data_def(&mut self, ops : Vec<DefLink>, data: Array<u8>) -> DefLink {
-        let mut def = DefModel::new_boxed(ops, data);
+        let def = DefModel::new_boxed(Array::from(ops), data);
+        self.insert_def(def)
+    }
 
+    pub fn insert_def(&mut self, def : Box<DefModel>) -> DefLink{
         let def_ptr = DefLink::from(&def);
         if def.kind == DefKind::Pending{
             self.pending.insert(def_ptr, def);
@@ -76,13 +79,12 @@ impl WorldImpl {
         def_ptr
     }
 
-    pub fn construct(&mut self, link: DefLink) -> DefLink{
-        let def = &*link;
-        if def.kind == DefKind::Pending && DepCheck::valid(link){
-            CyclicSigner::sign( self, link);
+    pub fn construct(&mut self, def: DefLink) -> DefLink{
+        if def.kind == DefKind::Pending && DepCheck::valid(def){
+            CyclicSigner::sign( self, def)
+        }else{
+            def
         }
-
-        link
     }
 
     pub fn sign(&mut self, link: DefLink, sign: &Signature) -> DefLink {
