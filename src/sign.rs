@@ -219,7 +219,6 @@ impl<'a> CyclicSigner<'a> {
         self.collect(curr, &mut old_defs);
 
         let len = old_defs.len();
-        let mut last = len % 2;
 
         for epoch in 0 .. len{
             for def_ptr in &old_defs {
@@ -230,59 +229,48 @@ impl<'a> CyclicSigner<'a> {
         let mut anomalies = HashMap::new();
         let mut has_anomalies = false;
 
+        let mut unique_defs = Vec::new();
+
         for old in &old_defs {
             let mut node = self.node(*old);
             let sign = &node.signs[len % 2];
 
-            println!("{:?}", *sign);
             if anomalies.contains_key(sign){
                 node.forward = self.node(*anomalies.get(sign).unwrap());
                 has_anomalies = true;
             }else{
                 anomalies.insert(*sign, *old);
+                unique_defs.push(*old);
             }
         }
 
         if has_anomalies{
-            let mut size = 0;
-            for old in &old_defs {
+            for old in &unique_defs {
                 let mut node = self.node(*old);
-
-                if node.forward.is_null(){
-                    size+=1;
-                    node.signs = [Signature::zero(); 2];
-                }
+                node.signs = [Signature::zero(); 2];
             }
 
-            last = size % 2;
-
-            for epoch in 0 .. size{
-                for old in &old_defs {
+            for epoch in 0 .. unique_defs.len(){
+                for old in &unique_defs {
                     let node = self.node(*old);
-
-                    if node.forward.is_null(){
-                        self.sign_node(*old, epoch % 2)
-                    }
+                    self.sign_node(*old, epoch % 2)
                 }
             }
         }
 
         let mut map = HashMap::new();
 
-        for def in &old_defs {
+        for def in &unique_defs {
             let node = self.node(*def);
-            if node.forward.is_null(){
-                let sign = &node.signs[last];
-                println!("{:?}", *sign);
-                map.insert(*def, Box::new(DefModel {
-                    ops: Array::new(def.ops.len()),
-                    data: def.data.clone(),
-                    kind: DefKind::Constructed(*sign)
-                }));
-            }
+            let sign = &node.signs[unique_defs.len() % 2];
+            map.insert(*def, Box::new(DefModel {
+                ops: Array::new(def.ops.len()),
+                data: def.data.clone(),
+                kind: DefKind::Constructed(*sign)
+            }));
         }
 
-        for old in &old_defs {
+        for old in &unique_defs {
             if let Some(mut new) = map.get(old){
                 for idx in 0 .. old.ops.len(){
                     let op = old.ops.get(idx);
@@ -299,19 +287,17 @@ impl<'a> CyclicSigner<'a> {
 
         for old in &old_defs {
             let node = self.node(*old);
-            if node.forward.is_null(){
+
+            let new = if node.forward.is_null(){
                 let mut model = map.remove(old).unwrap();
                 let new = self.world.insert_def(model);
-                self.old2new.insert(*old, new);
-            }
-        }
-
-        for old in &old_defs {
-            let node = self.node(*old);
-            if !node.forward.is_null(){
+                new
+            }else{
                 let new = self.old2new.get(&node.forward.link).unwrap();
-                self.old2new.insert(*old, *new);
-            }
+                *new
+            };
+
+            self.old2new.insert(*old, new);
         }
     }
 
