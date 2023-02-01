@@ -9,9 +9,9 @@ use sha2::{Digest, Sha256, Sha384, Sha512};
 use std::ptr::{eq, null};
 use std::time::{Duration, Instant};
 use sha2::digest::Update;
-use crate::def::{Def, DefProxy, DefPtr, Mode};
+use crate::def::{DefModel, Def, DefLink, Mode};
 use crate::utils::UnsafeMut;
-use crate::World;
+use crate::WorldImpl;
 
 #[derive(Copy, Clone, Hash)]
 pub struct Signature {
@@ -68,7 +68,7 @@ pub struct AcyclicSigner{
 }
 
 impl AcyclicSigner{
-    pub fn sign(def: &Def) -> Signature {
+    pub fn sign(def: &DefModel) -> Signature {
         let mut hash = Sha256::new();
 
         for op_ptr in &def.ops{
@@ -109,23 +109,23 @@ pub struct SignNode{
 
 pub struct CyclicSigner {
     index: usize,
-    world: *mut World,
-    nodes: HashMap<DefPtr, Box<SignNode>>
+    world: *mut WorldImpl,
+    nodes: HashMap<DefLink, Box<SignNode>>
 }
 
 impl CyclicSigner {
-    pub fn sign(proxy: DefProxy) -> DefProxy{
+    pub fn sign(proxy: Def) -> Def {
         let mut signer = CyclicSigner {
             index: 0,
             world: proxy.world,
             nodes: HashMap::new()
         };
 
-        signer.discover(proxy.ptr);
+        signer.discover(proxy.link);
         proxy
     }
 
-    fn node(&mut self, ptr: DefPtr) -> UnsafeMut<SignNode>{
+    fn node(&mut self, ptr: DefLink) -> UnsafeMut<SignNode>{
         let node = match self.nodes.entry(ptr) {
             Occupied(entry) => UnsafeMut::from(entry.get()),
             Vacant(entry) => {
@@ -158,7 +158,7 @@ impl CyclicSigner {
         node
     }
 
-    fn discover(&mut self, curr: DefPtr) -> bool{
+    fn discover(&mut self, curr: DefLink) -> bool{
         if self.nodes.contains_key(&curr){
             return true;
         }
@@ -170,7 +170,7 @@ impl CyclicSigner {
 
         let mut curr_node = self.node(curr);
 
-        for dep_ptr in DefProxy::from(curr).ops() {
+        for dep_ptr in Def::from(curr).ops() {
             if self.discover(*dep_ptr){
                 let dep_node = self.node(*dep_ptr);
                 if !dep_node.closed{
@@ -186,7 +186,7 @@ impl CyclicSigner {
         return true;
     }
 
-    fn sign_node(&mut self, def_ptr : DefPtr, slot: usize){
+    fn sign_node(&mut self, def_ptr : DefLink, slot: usize){
         let def = unsafe{&*def_ptr};
         let mut node = self.node(def_ptr);
 
@@ -210,7 +210,7 @@ impl CyclicSigner {
         node.signs[1 - slot].data = <[u8; 32]>::from(hash.finalize());
     }
 
-    fn sign_impl(&mut self, curr: DefPtr){
+    fn sign_impl(&mut self, curr: DefLink){
         let mut list = Vec::new();
         self.collect(curr, &mut list);
 
@@ -234,7 +234,7 @@ impl CyclicSigner {
         println!("-----------------------");
     }
 
-    fn collect(&mut self, curr: DefPtr, list: &mut Vec<DefPtr>){
+    fn collect(&mut self, curr: DefLink, list: &mut Vec<DefLink>){
         if let Some(curr_node) = self.nodes.get(&curr){
             if curr_node.index == curr_node.low_link && !list.is_empty(){
                 return
@@ -242,7 +242,7 @@ impl CyclicSigner {
 
             UnsafeMut::from(curr_node).closed = true;
             list.push(curr);
-            for dep_ptr in DefProxy::from(curr).ops() {
+            for dep_ptr in Def::from(curr).ops() {
                 self.collect(*dep_ptr, list)
             }
         }

@@ -28,17 +28,16 @@ impl<T> Array<T> {
     }
 
     pub fn get(&self, idx: usize) -> &T {
-        assert!(idx < self.len);
-        unsafe { &*(self.ptr.add(idx)) }
-    }
-
-    pub fn get_mut(&self, idx: usize) -> &mut T {
-        assert!(idx < self.len);
-        unsafe { &mut *(self.ptr.add(idx)) }
+        unsafe { self.slot(idx) }
     }
 
     pub fn set(&self, idx: usize, val : T){
-        *self.get_mut(idx) = val;
+        unsafe { *self.slot(idx) = val }
+    }
+
+    unsafe fn slot(&self, idx: usize) -> &mut T {
+        assert!(idx < self.len);
+        &mut *self.ptr.add(idx)
     }
 
     pub fn len(&self) -> usize {

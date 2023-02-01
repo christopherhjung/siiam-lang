@@ -14,7 +14,7 @@ use crate::bind::NameBinder;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::check::{TypeChecker, TyTable};
-use crate::world::{Axiom, DepCheck, World};
+use crate::world::{Axiom, DepCheck, WorldImpl};
 use crate::llvm::CodeGen;
 use crate::source::Source;
 use crate::sym::*;
@@ -63,7 +63,7 @@ pub fn main() {
     code_gen.visit_module(&mut module);
     code_gen.emit();*/
 
-    let mut world = World::new_boxed();
+    let mut world = WorldImpl::new_boxed();
 /*
     let zero = world.lit_int(0);
     let one = world.lit_int(1);
