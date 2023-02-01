@@ -55,7 +55,7 @@ impl WorldImpl {
         *self.axioms.get(&ax).unwrap()
     }
 
-    fn new_def(&mut self, ops : Vec<DefLink>) -> DefLink {
+    fn create_and_insert_def(&mut self, ops : Vec<DefLink>) -> DefLink {
         self.new_data_def(ops, Array::empty())
     }
 
@@ -83,12 +83,14 @@ impl WorldImpl {
             axioms_rev: HashMap::new()
         });
 
-        let mut link = world.new_def(Vec::new());
+        let mut link = world.create_and_insert_def(Vec::new());
+        println!("{:?}", link.kind);
 
         for axiom in Axiom::iter(){
             let mut link_arr = Vec::new();
             link_arr.push( link);
-            link = world.new_def(link_arr);
+            link = world.create_and_insert_def(link_arr);
+            println!("{:?}", link.kind);
             world.axioms.insert(axiom, link);
             world.axioms_rev.insert(link, axiom);
         }
@@ -140,7 +142,12 @@ macro_rules! arr(
 );
 
 impl Builder{
-    pub fn construct<const COUNT: usize>(&mut self, defs: &[&Def; COUNT]) -> [Def; COUNT]{
+    pub fn construct_def(&mut self, def: &Def) -> Def{
+        let [def] = self.construct_defs(&[def]);
+        def
+    }
+
+    pub fn construct_defs<const COUNT: usize>(&mut self, defs: &[&Def; COUNT]) -> [Def; COUNT]{
         let def = defs[0];
         let link = def.link;
         if def.kind == DefKind::Pending && DepCheck::valid(link){

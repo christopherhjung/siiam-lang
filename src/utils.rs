@@ -1,9 +1,22 @@
 use std::borrow::{Borrow, BorrowMut};
 use std::ops::{Deref, DerefMut};
+use std::ptr::{null, null_mut};
 use std::rc::Rc;
 
 pub struct UnsafeMut<T>{
     ptr: *mut T
+}
+
+impl<T> UnsafeMut<T> {
+    pub fn null() -> UnsafeMut<T>{
+        UnsafeMut{
+            ptr: null_mut()
+        }
+    }
+
+    pub fn is_null(&self) -> bool{
+        self.ptr == null_mut()
+    }
 }
 
 impl<T> From<&Box<T>> for UnsafeMut<T>{

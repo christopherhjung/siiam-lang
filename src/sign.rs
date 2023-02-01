@@ -102,7 +102,19 @@ pub struct SignNode{
     index : usize,
     low_link : usize,
     closed: bool,
+    link: DefLink,
+    forward: UnsafeMut<SignNode>,
     signs : [Signature; 2]
+}
+
+impl SignNode{
+    pub fn get_forward(&self) -> &Self{
+        if self.forward.is_null(){
+            self
+        }else{
+            self.forward.get_forward()
+        }
+    }
 }
 
 pub struct CyclicSigner<'a> {
@@ -130,16 +142,18 @@ impl<'a> CyclicSigner<'a> {
         }
     }
 
-    fn insert(&mut self, ptr: DefLink){
-        if !self.nodes.contains_key(&ptr){
+    fn insert(&mut self, link: DefLink){
+        if !self.nodes.contains_key(&link){
             let last_idx = self.index;
             self.index = last_idx + 1;
-            self.nodes.insert(ptr,
+            self.nodes.insert(link,
                   Box::new(
                       SignNode{
                           index: last_idx,
                           low_link: last_idx,
                           closed : false,
+                          link,
+                          forward: UnsafeMut::null(),
                           signs : [Signature::zero(); 2]
                       }
                   )
@@ -147,9 +161,9 @@ impl<'a> CyclicSigner<'a> {
         }
     }
 
-    fn node(&mut self, ptr: DefLink) -> UnsafeMut<SignNode>{
-        self.insert(ptr);
-        UnsafeMut::from(self.nodes.get(&ptr).unwrap())
+    fn node(&mut self, link: DefLink) -> UnsafeMut<SignNode>{
+        self.insert(link);
+        UnsafeMut::from(self.nodes.get(&link).unwrap())
     }
 
     pub fn discover(&mut self, curr: DefLink) -> bool{
@@ -183,12 +197,12 @@ impl<'a> CyclicSigner<'a> {
         let mut node = self.node(def);
         let mut hash = Sha256::new();
 
-        for op_ptr in &def.ops{
-            let sign = if let DefKind::Constructed(sign) = op_ptr.kind{
+        for op in &def.ops{
+            let sign = if let DefKind::Constructed(sign) = op.kind{
                 sign
             }else{
-                let dep_node = self.node(*op_ptr);
-                dep_node.signs[slot]
+                let dep_node = self.node(*op);
+                dep_node.get_forward().signs[slot]
             };
 
             hash = Digest::chain( hash, sign)
@@ -201,50 +215,103 @@ impl<'a> CyclicSigner<'a> {
     }
 
     fn sign_impl(&mut self, curr: DefLink){
-        let mut list = Vec::new();
-        self.collect(curr, &mut list);
+        let mut old_defs = Vec::new();
+        self.collect(curr, &mut old_defs);
 
-        let len = list.len();
+        let len = old_defs.len();
+        let mut last = len % 2;
 
         for epoch in 0 .. len{
-            for def_ptr in &list{
+            for def_ptr in &old_defs {
                 self.sign_node(*def_ptr, epoch % 2)
             }
         }
 
-        let mut map = HashMap::<DefLink, Box<DefModel>>::new();
+        let mut anomalies = HashMap::new();
+        let mut has_anomalies = false;
 
-        for def in &list {
-            map.insert(*def, Box::new(DefModel {
-                ops: Array::new(def.ops.len()),
-                data: def.data.clone(),
-                kind: DefKind::Pending
-            }));
-        }
-
-        for def in &list{
-            let node = self.node(*def);
+        for old in &old_defs {
+            let mut node = self.node(*old);
             let sign = &node.signs[len % 2];
 
-            let mut model = map.get(def).unwrap();
-            UnsafeMut::from(model).kind = DefKind::Constructed(*sign);
-
-            for idx in 0 .. def.ops.len(){
-                let op = def.ops.get(idx);
-                let new_link = if let Some(new_op) = map.get(op){
-                    DefLink::from(new_op)
-                }else{
-                    *op
-                };
-
-                model.ops.set(idx, new_link);
+            println!("{:?}", *sign);
+            if anomalies.contains_key(sign){
+                node.forward = self.node(*anomalies.get(sign).unwrap());
+                has_anomalies = true;
+            }else{
+                anomalies.insert(*sign, *old);
             }
         }
 
-        for def in &list {
-            let mut model = map.remove(def).unwrap();
-            let new_link = self.world.insert_def(model);
-            self.old2new.insert(*def, new_link);
+        if has_anomalies{
+            let mut size = 0;
+            for old in &old_defs {
+                let mut node = self.node(*old);
+
+                if node.forward.is_null(){
+                    size+=1;
+                    node.signs = [Signature::zero(); 2];
+                }
+            }
+
+            last = size % 2;
+
+            for epoch in 0 .. size{
+                for old in &old_defs {
+                    let node = self.node(*old);
+
+                    if node.forward.is_null(){
+                        self.sign_node(*old, epoch % 2)
+                    }
+                }
+            }
+        }
+
+        let mut map = HashMap::new();
+
+        for def in &old_defs {
+            let node = self.node(*def);
+            if node.forward.is_null(){
+                let sign = &node.signs[last];
+                println!("{:?}", *sign);
+                map.insert(*def, Box::new(DefModel {
+                    ops: Array::new(def.ops.len()),
+                    data: def.data.clone(),
+                    kind: DefKind::Constructed(*sign)
+                }));
+            }
+        }
+
+        for old in &old_defs {
+            if let Some(mut new) = map.get(old){
+                for idx in 0 .. old.ops.len(){
+                    let op = old.ops.get(idx);
+                    let new_link = if let Some(new_op) = map.get(op){
+                        DefLink::from(new_op)
+                    }else{
+                        *op
+                    };
+
+                    new.ops.set(idx, new_link);
+                }
+            }
+        }
+
+        for old in &old_defs {
+            let node = self.node(*old);
+            if node.forward.is_null(){
+                let mut model = map.remove(old).unwrap();
+                let new = self.world.insert_def(model);
+                self.old2new.insert(*old, new);
+            }
+        }
+
+        for old in &old_defs {
+            let node = self.node(*old);
+            if !node.forward.is_null(){
+                let new = self.old2new.get(&node.forward.link).unwrap();
+                self.old2new.insert(*old, *new);
+            }
         }
     }
 

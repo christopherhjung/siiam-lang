@@ -91,10 +91,11 @@ pub fn main() {
 
     let bot = builder.bot();
     let mut cn = builder.lam(&bot);
-    let var = builder.var(&cn);
-    builder.set_body(&cn, &var);
-    let [cn, var] = builder.construct(&[&cn, &var]);
+    let mut cn2 = builder.lam(&bot);
+    builder.set_body(&cn, &cn2);
+    builder.set_body(&cn2, &cn);
 
+    let [cn, var] = builder.construct_defs(&[&cn, &cn2]);
 
     println!("-----");
     println!("{:?}", cn.sign());
@@ -103,13 +104,11 @@ pub fn main() {
 
     let bot2 = builder.bot();
     let mut cn2 = builder.lam(&bot2);
-    let var2 = builder.var(&cn2);
-    builder.set_body(&cn2, &var2);
-    let [cn2, var2] = builder.construct(&[&cn2, &var2]);
+    builder.set_body(&cn2, &cn2);
+    let cn2 = builder.construct_def(&cn2);
 
     println!("-----");
     println!("{:?}", cn2.sign());
-    println!("{:?}", var2.sign());
     println!("-----");
 
     //println!("{:?} {:?}", var.link, var2.link);
