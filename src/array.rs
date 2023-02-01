@@ -60,18 +60,6 @@ impl<T> Drop for Array<T> {
     }
 }
 
-impl<T> std::ops::Index<usize> for Array<T> {
-    type Output = T;
-    fn index(&self, index: usize) -> &Self::Output {
-        self.get(index)
-    }
-}
-impl<T> std::ops::IndexMut<usize> for Array<T> {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        self.get_mut(index)
-    }
-}
-
 impl<'a, T> IntoIterator for &'a Array<T>{
     type Item = &'a T;
     type IntoIter = ArrayIterator<'a, T>;
@@ -100,5 +88,15 @@ impl<'a, T> Iterator for ArrayIterator<'a, T>{
         }else{
             None
         }
+    }
+}
+
+impl<T : Copy> From<Vec<T>> for Array<T> {
+    fn from(vec: Vec<T>) -> Self {
+        let arr = Array::new(vec.len());
+        for idx in 0 .. vec.len(){
+            arr.set(idx, *vec.get(idx).unwrap());
+        }
+        arr
     }
 }

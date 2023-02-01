@@ -1,8 +1,10 @@
 use std::alloc::alloc;
+use std::borrow::BorrowMut;
 use std::cell::{Cell, RefCell, RefMut, UnsafeCell};
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
+use std::mem::MaybeUninit;
 use std::ops::{Deref, DerefMut, Index};
 use std::ptr;
 use std::ptr::{null, null_mut};
@@ -16,11 +18,14 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use crate::def::{DefModel, Def, DefLink, Mode, DefKind};
 use crate::def::Mode::Constructed;
-use crate::utils::UnsafeMut;
+use crate::utils::{MutBox, UnsafeMut};
 
 
 pub struct World{
-    pub impl_: Rc<WorldImpl>
+    pub impl_: Rc<MutBox<WorldImpl>>
+}
+
+impl World{
 }
 
 impl Clone for World{
@@ -61,8 +66,8 @@ impl WorldImpl {
     fn new_data_def(&mut self, ops : Vec<DefLink>, data: Array<u8>) -> DefLink {
         let mut def = DefModel::new_boxed(ops, data);
 
-        let def_ptr : DefLink = &*def;
-        if def.kind == Mode::Pending{
+        let def_ptr = DefLink::from(&def);
+        if def.kind == DefKind::Pending{
             self.pending.insert(def_ptr, def);
         }else if let DefKind::Constructed(sign) = def.kind{
             self.sea.insert(sign, def);
@@ -71,24 +76,24 @@ impl WorldImpl {
         def_ptr
     }
 
-    pub fn finalize(&mut self, link: DefLink){
-        if proxy.sign.is_some() || !DepCheck::valid(link){
-            return
+    pub fn construct(&mut self, link: DefLink) -> DefLink{
+        let def = &*link;
+        if def.kind == DefKind::Pending && DepCheck::valid(link){
+            CyclicSigner::sign( self, link);
         }
 
-        if proxy.mode == Mode::Constructed{
-            AcyclicSigner::sign(proxy);
-        }else{
-            CyclicSigner::sign(*proxy);
-        }
+        link
     }
 
-    pub fn sign(&mut self, proxy: Def, sign: &Signature) -> Def {
-        if let Some(mut def) = self.pending.remove(&proxy.link){
-            def.kind = DefKind::Constructed(*sign);
+    pub fn sign(&mut self, link: DefLink, sign: &Signature) -> DefLink {
+        if let Some(mut def) = self.pending.remove(&link){
             match self.sea.entry(*sign) {
-                Occupied(entry) =>  self.new_def_proxy(&**entry.get()),
-                Vacant(entry) => self.new_def_proxy(&**entry.insert(def)),
+                Occupied(entry) =>
+                    DefLink::from(entry.get()),
+                Vacant(entry) => {
+                    def.kind = DefKind::Constructed(*sign);
+                    DefLink::from(entry.insert(def))
+                },
             }
         }else{
             panic!()
@@ -133,23 +138,28 @@ impl WorldImpl {
     }
 
     pub fn lam(&mut self, ty : DefLink) -> DefLink {
-        self.new_def(vec![self.axiom(Axiom::Lam), ty, null()])
+        self.new_def(vec![self.axiom(Axiom::Lam), ty, DefLink::null()])
     }
 
     pub fn var(&mut self, lam: DefLink) -> DefLink {
         self.new_def(vec![self.axiom(Axiom::Var), lam])
     }
 
+    fn set_op(def_link: DefLink, val: DefLink, idx: usize){
+        let def = &*def_link;
+        def.ops.set(idx, val)
+    }
+
     pub fn set_body(&mut self, lam: DefLink, body: DefLink){
-        lam.set_op(2, body);
+        Self::set_op(lam,body, 2);
     }
 
     pub fn new_boxed() -> Box<WorldImpl>{
         let mut world = Box::new(WorldImpl {
-            sign_size: 32,
-            pending: HashMap::new(),
-            sea : HashMap::new(),
-            axioms : HashMap::new(),
+            sign_size:  32,
+            pending:    HashMap::new(),
+            sea:        HashMap::new(),
+            axioms:     HashMap::new(),
             axioms_rev: HashMap::new()
         });
 
@@ -158,10 +168,9 @@ impl WorldImpl {
         for axiom in Axiom::iter(){
             let mut link_arr = Vec::new();
             link_arr.push( link);
-            let axiom_ref = world.new_def(link_arr);
-            link = axiom_ref.ptr;
-            world.axioms.insert(axiom, axiom_ref.ptr);
-            world.axioms_rev.insert(axiom_ref.ptr, axiom);
+            link = world.new_def(link_arr);
+            world.axioms.insert(axiom, link);
+            world.axioms_rev.insert(link, axiom);
         }
 
         world
@@ -176,20 +185,23 @@ impl World {
     pub fn new_def(&self, link : DefLink) -> Def{
         Def{
             world: self.impl_.clone(),
-            link: link
+            link
         }
     }
 
-    pub fn axiom( &self, ax : Axiom ) -> Def {
-        self.new_def(self.impl_.axiom(ax))
+    pub fn axiom( &mut self, ax : Axiom ) -> Def {
+        let link = self.impl_.axiom(ax);
+        self.new_def(link)
     }
 
     pub fn lit_int( &mut self, val : i32 ) -> Def {
-        self.new_def(self.impl_.lit_int(val))
+        let link = self.impl_.get().lit_int(val);
+        self.new_def(link)
     }
 
     pub fn ty_int( &mut self, width : i32 ) -> Def {
-        self.new_def(self.impl_.ty_int(width))
+        let link = self.impl_.get().ty_int(width);
+        self.new_def(link)
     }
 
     pub fn bot( &mut self ) -> Def {
@@ -202,62 +214,61 @@ impl World {
     }*/
 
     pub fn pack(&mut self, shape: &Def, body: &Def) -> Def {
-        self.new_def(self.impl_.pack(shape.link, body.link))
+        let link = self.impl_.get().pack(shape.link, body.link);
+        self.new_def(link)
     }
 
     pub fn extract(&mut self, tup: &Def, index: &Def) -> Def {
-        self.new_def(self.impl_.extract(tup.link, index.link))
+        let link = self.impl_.get().extract(tup.link, index.link);
+        self.new_def(link)
     }
 
     pub fn app(&mut self, callee: &Def, arg: &Def) -> Def {
-        self.new_def(self.impl_.app(callee.link, arg.link))
+        let link = self.impl_.get().app(callee.link, arg.link);
+        self.new_def(link)
     }
 
     pub fn pi(&mut self, domain: &Def, co_domain : &Def) -> Def {
-        self.new_def(self.impl_.pi(domain.link, co_domain.link))
+        let link = self.impl_.get().pi(domain.link, co_domain.link);
+        self.new_def(link)
     }
 
     pub fn lam(&mut self, ty : &Def) -> Def {
-        self.new_def(self.impl_.lam(ty.link))
+        let link = self.impl_.get().lam(ty.link);
+        self.new_def(link)
     }
 
     pub fn var(&mut self, lam: &Def) -> Def {
-        self.new_def(self.impl_.var(lam.link))
+        let link = self.impl_.get().var(lam.link);
+        self.new_def(link)
     }
 
     pub fn set_body(&mut self, lam: &Def, body: &Def){
         lam.set_op(2, body);
     }
 
-    pub fn new_boxed() -> Box<WorldImpl>{
-        let mut world = Box::new(WorldImpl {
-            sign_size: 32,
-            pending: HashMap::new(),
-            sea : HashMap::new(),
-            axioms : HashMap::new(),
-            axioms_rev: HashMap::new()
-        });
+    pub fn construct<const COUNT: usize>(&self, defs: [&Def; COUNT]) -> [Def; COUNT]{
+        let mut array: MaybeUninit<[Def; COUNT]> = MaybeUninit::uninit();
+        let mut ptr = array.as_mut_ptr() as *mut Def;
 
-        let origin = world.new_def(Vec::new());
-        let mut link = origin.ptr;
+        unsafe {
+            for def in defs{
+                ptr::write(ptr, self.new_def(def.link));
+                ptr = ptr.add(1);
+            }
 
-        for axiom in Axiom::iter(){
-            let mut link_arr = Vec::new();
-            link_arr.push( Def::from(link));
-            let axiom_ref = world.new_def(link_arr);
-            link = axiom_ref.ptr;
-            world.axioms.insert(axiom, axiom_ref.ptr);
-            world.axioms_rev.insert(axiom_ref.ptr, axiom);
+            array.assume_init()
         }
+    }
 
-        world
+    pub fn new() -> World{
+        let world_impl = WorldImpl::new_boxed();
+
+        World{
+            impl_: Rc::new(MutBox::from(world_impl))
+        }
     }
 }
-
-
-
-
-
 
 
 
@@ -275,7 +286,7 @@ impl DepCheck {
     }
 
     fn valid_impl(&mut self, current: DefLink) -> bool{
-        if current == null(){
+        if current.is_null(){
             return false;
         }
 
@@ -283,7 +294,7 @@ impl DepCheck {
             return true;
         }
 
-        for dep_ptr in Def::from(current).ops() {
+        for dep_ptr in &current.ops {
             if !self.valid_impl(*dep_ptr){
                 return false
             }

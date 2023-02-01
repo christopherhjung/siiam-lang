@@ -14,7 +14,7 @@ use crate::bind::NameBinder;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::check::{TypeChecker, TyTable};
-use crate::world::{Axiom, DepCheck, WorldImpl};
+use crate::world::{Axiom, DepCheck, World, WorldImpl};
 use crate::llvm::CodeGen;
 use crate::source::Source;
 use crate::sym::*;
@@ -38,6 +38,7 @@ mod sign;
 mod array;
 mod def;
 mod utils;
+
 
 pub fn main() {
     let mut sym_table = Rc::new(RefCell::new(SymTable::new()));
@@ -63,7 +64,7 @@ pub fn main() {
     code_gen.visit_module(&mut module);
     code_gen.emit();*/
 
-    let mut world = WorldImpl::new_boxed();
+    let mut world = World::new();
 /*
     let zero = world.lit_int(0);
     let one = world.lit_int(1);
@@ -73,18 +74,31 @@ pub fn main() {
     let pi = world.pi(int_ty, bot);*/
 
     let bot = world.bot();
-    let mut cn = world.lam(bot);
-    let var = world.var(cn);
-    world.set_body(cn, var);
-
+    let mut cn = world.lam(&bot);
+    let var = world.var(&cn);
+    world.set_body(&cn, &var);
+    cn = cn.construct();
     println!("{:?}", cn.sign());
 
     let bot2 = world.bot();
-    let mut cn2 = world.lam(bot2);
-    let var2 = world.var(cn2);
-    world.set_body(cn2, var2);
+    let mut cn2 = world.lam(&bot2);
+    let var2 = world.lam(&bot2);
+    world.set_body(&cn2, &var2);
+    world.set_body(&var2, &cn2);
+    cn2 = cn2.construct();
+    //println!("{:?}", cn2.sign());
 
-    println!("{:?}", cn.sign());
+    //println!("{:?}", cn2.link);
+
+    let [ty, body] = cn2.args();
+
+    println!("{:?} {:?}", ty.link, body.link);
+    println!("{:?} {:?}", bot2.link, var2.link);
+
+
+    let [a, b] = world.construct([&cn2, &cn]);
+
+    println!("sss")
 }
 
 

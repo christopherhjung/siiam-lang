@@ -1,62 +1,108 @@
 use std::alloc::alloc;
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
+use std::mem::MaybeUninit;
 use std::ops::{Deref, Index};
 use std::ptr;
 use std::ptr::{null, null_mut};
 use std::rc::Rc;
 use sha2::{Digest, Sha256};
 use sha2::digest::Update;
-use crate::sign::Signature;
+use crate::sign::{AcyclicSigner, Signature};
 use crate::array::Array;
 
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
+use crate::token::TokenKind;
+use crate::utils::{MutBox, UnsafeMut};
 use crate::world::World;
 use crate::WorldImpl;
 
-pub type DefLink = *const DefModel;
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
+pub struct DefLink{
+    ptr: *const DefModel
+}
+
+impl DefLink{
+    pub fn null() -> DefLink{
+        DefLink{
+            ptr: null()
+        }
+    }
+
+    pub fn is_null(&self) -> bool{
+        self.ptr == null()
+    }
+}
+
+impl From<&Box<DefModel>> for DefLink{
+    fn from(def : &Box<DefModel>) -> Self {
+        DefLink{
+            ptr: &**def as *const _
+        }
+    }
+}
+
+impl From<&mut Box<DefModel>> for DefLink{
+    fn from(def : &mut Box<DefModel>) -> Self {
+        DefLink{
+            ptr: &**def as *const _
+        }
+    }
+}
+
+impl Deref for DefLink {
+    type Target = DefModel;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe {&*self.ptr}
+    }
+}
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum Mode {
     Constructed, Pending
 }
 
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum DefKind {
-    Constructed(Signature), Pending
+    Constructed(Signature), Forwarding(DefLink), Pending
 }
 
 pub struct DefModel {
     pub ops: Array<DefLink>,
     pub data: Array<u8>,
-    //pub sign: Option<Signature>,
-    //pub mode: Mode,
     pub kind: DefKind
 }
 
 pub struct Def {
-    pub world: Rc<WorldImpl>,
+    pub world: Rc<MutBox<WorldImpl>>,
     pub link: DefLink
 }
 
 impl DefModel {
     pub fn new_boxed(ops : Vec<DefLink>, data: Array<u8> ) -> Box<DefModel>{
-        let op_arr = Array::new(ops.len());
-        let mut i = 0;
-        let mut variant = Mode::Pending;
+        let mut pending = false;
         for def_ref in &ops{
-            op_arr.set(i, *def_ref);
-            if *def_ref == null() || def_ref == Mode::Pending{
-                variant = Mode::Pending;
+            if def_ref.is_null() || def_ref.kind == DefKind::Pending{
+                pending = true;
             }
-            i += 1;
         }
 
-        Box::new( DefModel {
-            ops: op_arr,
+        let mut res = Box::new( DefModel {
+            ops: Array::from(ops),
             data,
             kind: DefKind::Pending
-        })
+        });
+
+        res.kind  = if pending{
+            DefKind::Pending
+        }else{
+            DefKind::Constructed(AcyclicSigner::sign(&*res))
+        };
+
+        res
     }
 }
 
@@ -67,21 +113,37 @@ impl Def {
         }
     }
 
-    pub fn null(world: &Rc<WorldImpl>) -> Def {
-        Self::new(world: world.clone(), null())
+    pub fn new(world: &Rc<MutBox<WorldImpl>>, link: DefLink) -> Def {
+        Def { world: world.clone(), link }
     }
 
-    pub fn from(ptr : DefLink) -> Def {
-        Self::new(Rc::new_uninit(), ptr)
+    pub fn op( &self, idx : usize ) -> Def {
+        Def::new(&self.world,*self.ops.get(idx))
     }
 
-    pub fn new(world: &Rc<WorldImpl>, ptr : DefLink) -> Def {
-        Def { world: world.clone(), link: ptr }
+    pub fn ops_offset<const COUNT: usize>(&self, offset : usize) -> [Def; COUNT]{
+        assert_eq!(COUNT + offset, self.ops.len());
+        let mut array: MaybeUninit<[Def; COUNT]> = MaybeUninit::uninit();
+        let ptr = array.as_mut_ptr() as *mut Def;
+
+        unsafe {
+            for idx in offset .. self.ops.len(){
+                ptr::write(
+                    ptr.add(idx),
+                    Def::new(&self.world, *self.ops.get(idx))
+                );
+            }
+
+            array.assume_init()
+        }
     }
 
-    fn variant(&self) -> Mode {
-        let def = unsafe{&*self.link };
-        def.mode
+    pub fn ops<const COUNT: usize>(&self) -> [Def; COUNT]{
+        self.ops_offset(0)
+    }
+
+    pub fn args<const COUNT: usize>(&self) -> [Def; COUNT]{
+        self.ops_offset(1)
     }
 
     fn link(&self) -> DefLink {
@@ -89,29 +151,15 @@ impl Def {
     }
 
     pub fn op_len(&self) -> usize{
-        let def = unsafe{&*self.link };
-        def.ops.len()
+        self.ops.len()
     }
 
     pub fn data_len(&self) -> usize{
-        let def = unsafe{&*self.link };
-        def.data.len()
+        self.data.len()
     }
 
     pub fn has(&self, idx: usize) -> bool {
-        let def = unsafe{&*self.link };
-        let op_ptr = *def.ops.index(idx);
-        op_ptr != null()
-    }
-
-    pub fn ops(&self) -> &Array<DefLink>{
-        &self.ops
-    }
-
-    pub fn op( &self, idx : usize ) -> Def {
-        let def = unsafe{&*self.link };
-        let op_ptr = *def.ops.index(idx);
-        Def::new(self.world, op_ptr)
+        !self.ops.get(idx).is_null()
     }
 
     pub fn data_arr(&self) -> &[u8]{
@@ -120,21 +168,26 @@ impl Def {
     }
 
     pub fn set_op( &self, idx : usize, op: &Def){
-        let def = unsafe{&*self.link };
-        def.ops.set(idx, op.link())
+        self.ops.set(idx, op.link())
     }
-
+/*
     pub fn data<T>( &self, idx : usize ) -> &T{
         let def = unsafe{&*self.link };
         let data_ptr = unsafe{def.data.get_ptr(idx)};
         unsafe {&*(data_ptr as *const T)}
+    }*/
+
+    pub fn construct(&self) -> Def{
+        let new_def = self.world.get().construct(self.link);
+        Def::new(&self.world,new_def)
     }
 
-    pub fn sign(&mut self) -> Option<Signature>{
-        let mut w = unsafe{&mut *self.world};
-        w.finalize(self);
-        let def = unsafe{&*self.link };
-        def.sign
+    pub fn sign(&self) -> Option<Signature>{
+        if let DefKind::Constructed(sign) = &self.kind{
+            Some(*sign)
+        }else{
+            None
+        }
     }
 }
 
