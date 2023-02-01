@@ -3,6 +3,7 @@ use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
+use std::iter::Map;
 use std::mem::MaybeUninit;
 use hex::ToHex;
 use rand::{distributions::Alphanumeric, Rng};
@@ -14,7 +15,7 @@ use sha2::digest::Update;
 use crate::def::{DefModel, Def, DefLink, Mode, DefKind};
 use crate::utils::UnsafeMut;
 use crate::world::World;
-use crate::WorldImpl;
+use crate::{Array, WorldImpl};
 
 #[derive(Copy, Clone, Hash)]
 pub struct Signature {
@@ -108,20 +109,25 @@ pub struct CyclicSigner<'a> {
     index: usize,
     world: &'a mut WorldImpl,
     nodes: HashMap<DefLink, Box<SignNode>>,
-    link: DefLink
+    old2new: HashMap<DefLink, DefLink>,
 }
 
 impl<'a> CyclicSigner<'a> {
-    pub fn sign(world: &'a mut WorldImpl, link: DefLink) -> DefLink {
-        let mut signer = CyclicSigner {
+    pub fn new(world: &'a mut WorldImpl) -> CyclicSigner<'a>{
+        CyclicSigner {
             index: 0,
             world,
             nodes: HashMap::new(),
-            link
-        };
+            old2new: HashMap::new(),
+        }
+    }
 
-        signer.discover(link);
-        signer.link
+    pub fn old2new(&mut self, link: DefLink) -> Option<DefLink>{
+        if let Some(link) = self.old2new.get(&link){
+            Some(*link)
+        }else{
+            None
+        }
     }
 
     fn insert(&mut self, ptr: DefLink){
@@ -146,7 +152,7 @@ impl<'a> CyclicSigner<'a> {
         UnsafeMut::from(self.nodes.get(&ptr).unwrap())
     }
 
-    fn discover(&mut self, curr: DefLink) -> bool{
+    pub fn discover(&mut self, curr: DefLink) -> bool{
         if self.nodes.contains_key(&curr){
             return true;
         }
@@ -206,22 +212,39 @@ impl<'a> CyclicSigner<'a> {
             }
         }
 
-        /*
-        let mut map = HashMap::<DefLink, MaybeUninit<Box<Def>>>::new();
+        let mut map = HashMap::<DefLink, Box<DefModel>>::new();
 
-        for def in &list{
-            map.insert(*def, MaybeUninit::uninit());
-        }*/
+        for def in &list {
+            map.insert(*def, Box::new(DefModel {
+                ops: Array::new(def.ops.len()),
+                data: def.data.clone(),
+                kind: DefKind::Pending
+            }));
+        }
 
         for def in &list{
             let node = self.node(*def);
             let sign = &node.signs[len % 2];
 
-            let link = self.world.sign(*def, sign);
+            let mut model = map.get(def).unwrap();
+            UnsafeMut::from(model).kind = DefKind::Constructed(*sign);
 
-            if self.link == curr{
-                self.link = link;
+            for idx in 0 .. def.ops.len(){
+                let op = def.ops.get(idx);
+                let new_link = if let Some(new_op) = map.get(op){
+                    DefLink::from(new_op)
+                }else{
+                    *op
+                };
+
+                model.ops.set(idx, new_link);
             }
+        }
+
+        for def in &list {
+            let mut model = map.remove(def).unwrap();
+            let new_link = self.world.insert_def(model);
+            self.old2new.insert(*def, new_link);
         }
     }
 

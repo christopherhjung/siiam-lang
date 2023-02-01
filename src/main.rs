@@ -15,7 +15,7 @@ use crate::bind::NameBinder;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::check::{TypeChecker, TyTable};
-use crate::world::{Axiom, DepCheck, World, WorldImpl};
+use crate::world::{Axiom, DefFactory, DepCheck, World, WorldImpl};
 use crate::llvm::CodeGen;
 use crate::source::Source;
 use crate::sym::*;
@@ -87,43 +87,36 @@ pub fn main() {
     let bot = world.bot();
     let pi = world.pi(int_ty, bot);*/
 
-    /*
-    let builder = world.builder();
+    let mut builder = world.builder();
 
     let bot = builder.bot();
     let mut cn = builder.lam(&bot);
     let var = builder.var(&cn);
     builder.set_body(&cn, &var);
-    let a = builder.construct(cn);*/
+    let [cn, var] = builder.construct(&[&cn, &var]);
 
-
-    let bot = world.bot();
-    let mut cn = world.lam(&bot);
-    let var = world.var(&cn);
-    world.set_body(&cn, &var);
-    cn = cn.construct();
-
-
-    let bot2 = world.bot();
-    let mut cn2 = world.lam(&bot2);
-    let var2 = world.var(&cn2);
-    world.set_body(&cn2, &var2);
-    cn2 = cn2.construct();
 
     println!("-----");
     println!("{:?}", cn.sign());
-    println!("{:?}", cn2.sign());
-    println!("-----");
-    println!("-----");
     println!("{:?}", var.sign());
+    println!("-----");
+
+    let bot2 = builder.bot();
+    let mut cn2 = builder.lam(&bot2);
+    let var2 = builder.var(&cn2);
+    builder.set_body(&cn2, &var2);
+    let [cn2, var2] = builder.construct(&[&cn2, &var2]);
+
+    println!("-----");
+    println!("{:?}", cn2.sign());
     println!("{:?}", var2.sign());
     println!("-----");
 
-    println!("{:?} {:?}", var.link, var2.link);
-    println!("{:?} {:?}", cn.link, cn2.link);
+    //println!("{:?} {:?}", var.link, var2.link);
+    //println!("{:?} {:?}", cn.link, cn2.link);
 
-    let [ty, body] = cn2.args();
-    let [a, b] = world.construct([&cn2, &cn]);
+    //let [ty, body] = cn2.args();
+    //let [a, b] = world.construct([&cn2, &cn]);
 
     println!("sss");
     let duration = start.elapsed();

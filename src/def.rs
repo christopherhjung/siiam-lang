@@ -177,10 +177,11 @@ impl Def {
         unsafe {&*(data_ptr as *const T)}
     }*/
 
+    /*
     pub fn construct(&self) -> Def{
         let new_def = self.world.get().construct(self.link);
         Def::new(&self.world,new_def)
-    }
+    }*/
 
     pub fn sign(&self) -> Option<Signature>{
         if let DefKind::Constructed(sign) = &self.kind{
