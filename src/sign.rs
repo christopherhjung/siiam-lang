@@ -227,8 +227,6 @@ impl<'a> CyclicSigner<'a> {
         }
 
         let mut anomalies = HashMap::new();
-        let mut has_anomalies = false;
-
         let mut unique_defs = Vec::new();
 
         for old in &old_defs {
@@ -237,14 +235,13 @@ impl<'a> CyclicSigner<'a> {
 
             if anomalies.contains_key(sign){
                 node.forward = self.node(*anomalies.get(sign).unwrap());
-                has_anomalies = true;
             }else{
                 anomalies.insert(*sign, *old);
                 unique_defs.push(*old);
             }
         }
 
-        if has_anomalies{
+        if unique_defs.len() != old_defs.len(){
             for old in &unique_defs {
                 let mut node = self.node(*old);
                 node.signs = [Signature::zero(); 2];
@@ -252,7 +249,6 @@ impl<'a> CyclicSigner<'a> {
 
             for epoch in 0 .. unique_defs.len(){
                 for old in &unique_defs {
-                    let node = self.node(*old);
                     self.sign_node(*old, epoch % 2)
                 }
             }
@@ -271,17 +267,16 @@ impl<'a> CyclicSigner<'a> {
         }
 
         for old in &unique_defs {
-            if let Some(mut new) = map.get(old){
-                for idx in 0 .. old.ops.len(){
-                    let op = old.ops.get(idx);
-                    let new_link = if let Some(new_op) = map.get(op){
-                        DefLink::from(new_op)
-                    }else{
-                        *op
-                    };
+            let new = map.get(old).unwrap();
+            for idx in 0 .. old.ops.len(){
+                let op = old.ops.get(idx);
+                let new_link = if let Some(new_op) = map.get(op){
+                    DefLink::from(new_op)
+                }else{
+                    *op
+                };
 
-                    new.ops.set(idx, new_link);
-                }
+                new.ops.set(idx, new_link);
             }
         }
 
@@ -289,12 +284,10 @@ impl<'a> CyclicSigner<'a> {
             let node = self.node(*old);
 
             let new = if node.forward.is_null(){
-                let mut model = map.remove(old).unwrap();
-                let new = self.world.insert_def(model);
-                new
+                let model = map.remove(old).unwrap();
+                self.world.insert_def(model)
             }else{
-                let new = self.old2new.get(&node.forward.link).unwrap();
-                *new
+                *self.old2new.get(&node.forward.link).unwrap()
             };
 
             self.old2new.insert(*old, new);
