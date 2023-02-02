@@ -86,6 +86,16 @@ pub struct Def {
     pub link: DefLink
 }
 
+impl DefModel{
+    pub fn is_root(&self) -> bool{
+        if let DefState::Constructed(sign) = &self.state{
+            sign.is_zero()
+        }else {
+            false
+        }
+    }
+}
+
 impl Def {
     pub fn world(&self) -> World{
         World{

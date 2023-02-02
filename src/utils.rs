@@ -1,3 +1,5 @@
+
+
 use std::borrow::{Borrow, BorrowMut};
 use std::ops::{Deref, DerefMut};
 use std::ptr::{null, null_mut};
@@ -112,3 +114,19 @@ macro_rules! arr(
         }
     })
 );
+
+#[macro_export]
+macro_rules! array {
+    () => (
+        Array::empty()
+    );
+    ($($x:expr),+ $(,)?) => ({
+        let elems = [$($x),+];
+        let arr = Array::new(elems.len());
+        for idx in 0 .. elems.len(){
+            arr.set(idx, elems[idx]);
+        }
+
+        arr
+    });
+}

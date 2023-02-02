@@ -42,6 +42,8 @@ mod def;
 mod utils;
 
 
+
+
 pub fn main() {
 
     let mut sym_table = Rc::new(RefCell::new(SymTable::new()));
@@ -106,6 +108,10 @@ pub fn main() {
     println!("sss");
     let duration = start.elapsed();
     println!("Time elapsed in expensive_function() is: {:?}", duration);
+
+    let test = array![2, 3];
+
+
 
 }
 

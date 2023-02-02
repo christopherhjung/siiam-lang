@@ -26,6 +26,9 @@ impl Signature {
     pub fn toHex( &self ) -> String{
         return hex::encode(self.data);
     }
+    pub fn is_zero( &self ) -> bool{
+        self.data == [0; 32]
+    }
 
     pub fn random(  ) -> Signature {
         let s: String = rand::thread_rng()
@@ -40,9 +43,11 @@ impl Signature {
         hash
     }
 
-    pub fn zero(  ) -> Signature {
+    pub fn zero() -> Signature {
         Signature { data: [0; 32] }
     }
+
+
 }
 
 impl Debug for Signature{

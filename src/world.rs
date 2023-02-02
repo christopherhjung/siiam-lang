@@ -17,6 +17,7 @@ use crate::array::Array;
 
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
+use crate::array;
 use crate::def::{DefModel, Def, DefLink, Mode, DefState, DefKind};
 use crate::def::Mode::Constructed;
 use crate::utils::{MutBox, UnsafeMut};
@@ -188,20 +189,12 @@ impl Builder{
 }
 
 impl DefFactory for Builder{
-    fn create_def(&mut self, ax: DefLink, ops: Vec<DefLink>) -> Def {
+    fn create_def(&mut self, ax: DefLink, ops: Array<DefLink>) -> Def {
         let def = Box::from(DefModel{
             ax,
-            kind: DefKind::Node(Array::from(ops)),
+            kind: DefKind::Node(ops),
             state: DefState::Pending
         });
-/*
-        let link = if def.state == DefState::Pending{
-
-            self.pending.insert(link, def);
-            link
-        }else{
-            self.world.get().insert_def(def)
-        };*/
 
         let link = DefLink::from(&def);
         self.pending.insert(link, def);
@@ -215,42 +208,42 @@ impl DefFactory for Builder{
 
 
 pub trait DefFactory {
-    fn create_def(&mut self, ax: DefLink, ops: Vec<DefLink>) -> Def;
+    fn create_def(&mut self, ax: DefLink, ops: Array<DefLink>) -> Def;
     fn axiom(&mut self, ax : Axiom) -> DefLink;
 
     fn bot(&mut self) -> Def {
         let ax = self.axiom(Axiom::Bot);
-        self.create_def(ax, vec![])
+        self.create_def(ax, array![])
     }
 
     fn pack(&mut self, shape: &Def, body: &Def) -> Def {
         let ax = self.axiom(Axiom::Pack);
-        self.create_def(ax, vec![shape.link, body.link])
+        self.create_def(ax, array![shape.link, body.link])
     }
 
     fn extract(&mut self, tup: &Def, index: &Def) -> Def {
         let ax = self.axiom(Axiom::Extract);
-        self.create_def(ax, vec![tup.link, index.link])
+        self.create_def(ax, array![tup.link, index.link])
     }
 
     fn app(&mut self, callee: &Def, arg: &Def) -> Def {
         let ax = self.axiom(Axiom::App);
-        self.create_def(ax, vec![callee.link, arg.link])
+        self.create_def(ax, array![callee.link, arg.link])
     }
 
     fn pi(&mut self, domain: &Def, co_domain : &Def) -> Def {
         let ax = self.axiom(Axiom::Pi);
-        self.create_def(ax, vec![domain.link, co_domain.link])
+        self.create_def(ax, array![domain.link, co_domain.link])
     }
 
     fn lam(&mut self, ty : &Def) -> Def {
         let ax = self.axiom(Axiom::Lam);
-        self.create_def(ax, vec![ty.link, DefLink::null()])
+        self.create_def(ax, array![ty.link, DefLink::null()])
     }
 
     fn var(&mut self, lam: &Def) -> Def {
         let ax = self.axiom(Axiom::Var);
-        self.create_def(ax, vec![lam.link])
+        self.create_def(ax, array![lam.link])
     }
 
     fn set_body(&mut self, lam: &Def, body: &Def){
