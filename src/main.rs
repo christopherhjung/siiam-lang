@@ -15,13 +15,14 @@ use crate::bind::NameBinder;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::check::{TypeChecker, TyTable};
-use crate::world::{Axiom, DefFactory, DepCheck, World, WorldImpl};
+use crate::world::{Axiom, Builder, DefFactory, DepCheck, World, WorldImpl};
 use crate::llvm::CodeGen;
 use crate::source::Source;
 use crate::sym::*;
 use crate::visitor::Visitor;
 use crate::print::ProgramPrinter;
 use crate::array::Array;
+use crate::data::Data;
 
 
 mod lexer;
@@ -90,23 +91,25 @@ pub fn main() {
     println!("-----------------");
     println!("-----------------");
     println!("-----------------");
-    let [cn, pi] = {
+    let cn = {
         let mut builder = world.builder();
 
         let i32_ty = builder.ty_int(32);
-        //let one = builder.lit(1, &i32_ty);
+        let one = builder.lit(1, &i32_ty);
 
-        let bot = builder.bot();
-        let pi = builder.pi(&bot, &i32_ty);
-        //let cn = builder.lam(&pi);
-        //let var = builder.var(&cn);
-        //builder.set_body(&cn, &one);
-        builder.construct_defs(&[&pi, &bot])
+        let pi = builder.pi(&i32_ty, &i32_ty);
+        let cn = builder.lam(&pi);
+        let var = builder.var(&cn);
+        let add_one = builder.add(&var, &one);
+        builder.set_body(&cn, &add_one);
+        //builder.construct_defs(&[&pi, &bot])
+
+        //builder.construct_defs(&[&cn, &i32_ty])
+        builder.construct_def(&i32_ty)
     };
 
     println!("-----");
     println!("{:?}", cn.sign());
-    println!("{:?}", pi.sign());
     println!("-----");
 
     println!("sss");

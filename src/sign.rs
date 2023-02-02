@@ -161,16 +161,16 @@ impl<'a> CyclicSigner<'a> {
             let last_idx = self.index;
             self.index = last_idx + 1;
             self.nodes.insert(link,
-                  Box::new(
-                      SignNode{
-                          index: last_idx,
-                          low_link: last_idx,
-                          closed : false,
-                          link,
-                          unique: UnsafeMut::null(),
-                          signs : [Signature::zero(); 2]
-                      }
-                  )
+                Box::new(
+                    SignNode{
+                    index: last_idx,
+                    low_link: last_idx,
+                    closed : false,
+                    link,
+                    unique: UnsafeMut::null(),
+                    signs : [Signature::zero(); 2]
+                    }
+                )
             );
         }
     }
@@ -192,9 +192,9 @@ impl<'a> CyclicSigner<'a> {
         let mut curr_node = self.node(curr);
 
         if let DefKind::Node(ops) = &curr.kind{
-            for dep_ptr in ops {
-                if self.discover(*dep_ptr){
-                    let dep_node = self.node(*dep_ptr);
+            for op in ops {
+                if self.discover(*op){
+                    let dep_node = self.node(*op);
                     if !dep_node.closed{
                         curr_node.low_link = min(curr_node.low_link, dep_node.low_link);
                     }
@@ -213,6 +213,12 @@ impl<'a> CyclicSigner<'a> {
         let mut node = self.node(def);
         let mut hash = Sha256::new();
 
+        if let DefState::Constructed(sign) = def.ax.state{
+            hash = Update::chain(hash, sign);
+        }else{
+            panic!()
+        }
+
         match &def.kind {
             DefKind::Node(ops) => {
                 for op in ops{
@@ -220,14 +226,25 @@ impl<'a> CyclicSigner<'a> {
                         sign
                     }else{
                         let dep_node = self.node(*op);
-                        dep_node.unique().signs[slot]
+
+                        if let Some(new) = self.old2new.get(&dep_node.link){
+                            if let DefState::Constructed(sign) = new.state {
+                                sign
+                            }else{
+                                panic!()
+                            }
+                        }else{
+                            dep_node.unique().signs[slot]
+                        }
                     };
 
                     hash = Digest::chain( hash, sign)
                 }
             }
             DefKind::Data(data) => {
-                hash = Update::chain(hash, data.slice());
+                let slice = data.slice();
+                println!("{:?}", slice.len());
+                hash = Update::chain(hash, slice);
             }
         }
 

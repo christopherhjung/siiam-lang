@@ -45,7 +45,7 @@ pub struct WorldImpl {
 
 #[derive(EnumIter, Hash, Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Axiom{
-    Bot, Data, Tuple, Pack, Extract, App, Pi, Lam, Var,
+    Bot, Data, Tuple, Pack, Extract, App, Pi, Lam, Var, Add,
     Literal,
     TyInt
 }
@@ -124,16 +124,16 @@ impl WorldImpl {
 }
 
 impl World {
-    fn as_mut(&self) -> *mut WorldImpl {
-        self as *const _ as *mut WorldImpl
-    }
-
     pub fn new() -> World{
         let world_impl = WorldImpl::new_boxed();
 
         World{
             impl_: Rc::new(MutBox::from(world_impl))
         }
+    }
+
+    pub fn axiom(&self, ax: Axiom) -> Def{
+        Def::new(&self.impl_, self.impl_.get().axiom(ax))
     }
 
     pub fn builder(&self) -> Builder{
@@ -193,7 +193,7 @@ impl DefFactory for Builder{
     }
 
     fn create_data_def(&mut self, data: Data) -> Def {
-        let data_ax = self.axiom(Axiom::Data);
+        let data_ax = self.world.axiom(Axiom::Data);
         let def = Box::from(DefModel{
             ax: data_ax,
             kind: DefKind::Data(data),
@@ -203,8 +203,8 @@ impl DefFactory for Builder{
         self.insert_def(def)
     }
 
-    fn axiom(&mut self, ax: Axiom) -> DefLink {
-        self.world.axiom(ax)
+    fn axiom(&mut self, ax: Axiom) -> Def {
+        Def::new(&self.world, self.world.axiom(ax))
     }
 }
 
@@ -212,18 +212,17 @@ impl DefFactory for Builder{
 pub trait DefFactory {
     fn create_node_def(&mut self, ax: DefLink, ops: Array<DefLink>) -> Def;
     fn create_data_def(&mut self, data: Data) -> Def;
-    fn axiom(&mut self, ax : Axiom) -> DefLink;
+    fn axiom(&mut self, ax : Axiom) -> Def;
 
     fn bot(&mut self) -> Def {
-        let ax = self.axiom(Axiom::Bot);
-        self.create_node_def(ax, array![])
+        self.axiom(Axiom::Bot)
     }
 
     fn lit(&mut self, value: i32, ty: &Def) -> Def {
         let literal_ax = self.axiom(Axiom::Literal);
         let data = Data::from::<i32>(value);
         let value_def = self.create_data_def(data);
-        let literal = self.create_node_def(literal_ax, array![ty.link, value_def.link]);
+        let literal = self.create_node_def(literal_ax.link, array![ty.link, value_def.link]);
         literal
     }
 
@@ -231,42 +230,47 @@ pub trait DefFactory {
         let ty_int_ax = self.axiom(Axiom::TyInt);
         let data = Data::from::<i32>(width);
         let value_def = self.create_data_def(data);
-        let literal = self.create_node_def(ty_int_ax, array![value_def.link]);
+        let literal = self.create_node_def(ty_int_ax.link, array![value_def.link]);
         literal
     }
 
     fn pack(&mut self, shape: &Def, body: &Def) -> Def {
         let ax = self.axiom(Axiom::Pack);
-        self.create_node_def(ax, array![shape.link, body.link])
+        self.create_node_def(ax.link, array![shape.link, body.link])
     }
 
     fn extract(&mut self, tup: &Def, index: &Def) -> Def {
         let ax = self.axiom(Axiom::Extract);
-        self.create_node_def(ax, array![tup.link, index.link])
+        self.create_node_def(ax.link, array![tup.link, index.link])
     }
 
     fn app(&mut self, callee: &Def, arg: &Def) -> Def {
         let ax = self.axiom(Axiom::App);
-        self.create_node_def(ax, array![callee.link, arg.link])
+        self.create_node_def(ax.link, array![callee.link, arg.link])
     }
 
     fn pi(&mut self, domain: &Def, co_domain : &Def) -> Def {
         let ax = self.axiom(Axiom::Pi);
-        self.create_node_def(ax, array![domain.link, co_domain.link])
+        self.create_node_def(ax.link, array![domain.link, co_domain.link])
     }
 
     fn lam(&mut self, ty : &Def) -> Def {
         let ax = self.axiom(Axiom::Lam);
-        self.create_node_def(ax, array![ty.link, DefLink::null()])
+        self.create_node_def(ax.link, array![ty.link, DefLink::null()])
     }
 
     fn var(&mut self, lam: &Def) -> Def {
         let ax = self.axiom(Axiom::Var);
-        self.create_node_def(ax, array![lam.link])
+        self.create_node_def(ax.link, array![lam.link])
+    }
+
+    fn add(&mut self, lhs: &Def, rhs: &Def) -> Def {
+        let ax = self.axiom(Axiom::Add);
+        self.create_node_def(ax.link, array![lhs.link, rhs.link])
     }
 
     fn set_body(&mut self, lam: &Def, body: &Def){
-        assert_eq!(lam.link.ax, self.axiom(Axiom::Lam));
+        assert_eq!(lam.link.ax, self.axiom(Axiom::Lam).link);
         lam.set_op(1, body);
     }
 }

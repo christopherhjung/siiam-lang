@@ -39,7 +39,7 @@ impl Data {
     }
 
     pub fn from<T>(val: T) -> Data {
-        let data = Data::new(std::mem::size_of::<usize>());
+        let data = Data::new(std::mem::size_of::<T>());
         data.put(val);
         data
     }
