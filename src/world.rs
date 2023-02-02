@@ -17,7 +17,7 @@ use crate::array::Array;
 
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
-use crate::def::{DefModel, Def, DefLink, Mode, DefKind};
+use crate::def::{DefModel, Def, DefLink, Mode, DefState, DefKind};
 use crate::def::Mode::Constructed;
 use crate::utils::{MutBox, UnsafeMut};
 
@@ -55,21 +55,32 @@ impl WorldImpl {
     pub fn axiom( &self, ax : Axiom ) -> DefLink {
         *self.axioms.get(&ax).unwrap()
     }
+/*
+    fn create_node_def(&mut self, ax: DefLink, ops : Vec<DefLink>) -> DefLink {
+        let def = Box::from(DefModel{
+            ax,
+            kind: DefKind::Node(Array::from(ops)),
+            state: DefState::Pending
+        });
 
-    fn create_and_insert_def(&mut self, ops : Vec<DefLink>) -> DefLink {
-        self.new_data_def(ops, Array::empty())
-    }
-
-    fn new_data_def(&mut self, ops : Vec<DefLink>, data: Array<u8>) -> DefLink {
-        let def = DefModel::new_boxed(Array::from(ops), data);
         self.insert_def(def)
     }
 
+    fn create_data_def(&mut self, ax: DefLink, data : Array<u8>) -> DefLink {
+        let def = Box::from(DefModel{
+            ax,
+            kind: DefKind::Data(data),
+            state: DefState::None
+        });
+
+        self.insert_def(def)
+    }*/
+
     pub fn insert_def(&mut self, def : Box<DefModel>) -> DefLink{
         let def_ptr = DefLink::from(&def);
-        if def.kind == DefKind::Pending{
+        if def.state == DefState::Pending{
             panic!()
-        }else if let DefKind::Constructed(sign) = def.kind{
+        }else if let DefState::Constructed(sign) = def.state {
             self.sea.insert(sign, def);
         }
 
@@ -84,14 +95,23 @@ impl WorldImpl {
             axioms_rev: HashMap::new()
         });
 
-        let mut link = world.create_and_insert_def(Vec::new());
-        println!("{:?}", link.kind);
+        let root = world.insert_def(Box::new(DefModel{
+            ax: DefLink::null(),
+            kind: DefKind::Node(Array::empty()),
+            state: DefState::Constructed(Signature::zero())
+        }));
+        let mut link = root;
 
         for axiom in Axiom::iter(){
-            let mut link_arr = Vec::new();
-            link_arr.push( link);
-            link = world.create_and_insert_def(link_arr);
-            println!("{:?}", link.kind);
+            let mut axiom_def = Box::from(DefModel{
+                ax: root,
+                kind: DefKind::Node(Array::from(vec![link])),
+                state: DefState::Pending
+            });
+            axiom_def.state = DefState::Constructed(AcyclicSigner::sign(&*axiom_def));
+
+            link = world.insert_def(axiom_def);
+            println!("{:?}", link.state);
             world.axioms.insert(axiom, link);
             world.axioms_rev.insert(link, axiom);
         }
@@ -168,17 +188,23 @@ impl Builder{
 }
 
 impl DefFactory for Builder{
-    fn create_def(&mut self, ops: Vec<DefLink>) -> Def {
-        let def = DefModel::new_boxed(Array::from(ops), Array::empty());
+    fn create_def(&mut self, ax: DefLink, ops: Vec<DefLink>) -> Def {
+        let def = Box::from(DefModel{
+            ax,
+            kind: DefKind::Node(Array::from(ops)),
+            state: DefState::Pending
+        });
+/*
+        let link = if def.state == DefState::Pending{
 
-        let link = if def.kind == DefKind::Pending{
-            let link = DefLink::from(&def);
             self.pending.insert(link, def);
             link
         }else{
             self.world.get().insert_def(def)
-        };
+        };*/
 
+        let link = DefLink::from(&def);
+        self.pending.insert(link, def);
         Def::new(&self.world, link)
     }
 
@@ -189,51 +215,49 @@ impl DefFactory for Builder{
 
 
 pub trait DefFactory {
-    fn create_def(&mut self, ops: Vec<DefLink>) -> Def;
+    fn create_def(&mut self, ax: DefLink, ops: Vec<DefLink>) -> Def;
     fn axiom(&mut self, ax : Axiom) -> DefLink;
 
     fn bot(&mut self) -> Def {
         let ax = self.axiom(Axiom::Bot);
-        self.create_def(vec![ax])
+        self.create_def(ax, vec![])
     }
 
     fn pack(&mut self, shape: &Def, body: &Def) -> Def {
         let ax = self.axiom(Axiom::Pack);
-        self.create_def(vec![ax, shape.link, body.link])
+        self.create_def(ax, vec![shape.link, body.link])
     }
 
     fn extract(&mut self, tup: &Def, index: &Def) -> Def {
         let ax = self.axiom(Axiom::Extract);
-        self.create_def(vec![ax, tup.link, index.link])
+        self.create_def(ax, vec![tup.link, index.link])
     }
 
     fn app(&mut self, callee: &Def, arg: &Def) -> Def {
         let ax = self.axiom(Axiom::App);
-        self.create_def(vec![ax, callee.link, arg.link])
+        self.create_def(ax, vec![callee.link, arg.link])
     }
 
     fn pi(&mut self, domain: &Def, co_domain : &Def) -> Def {
         let ax = self.axiom(Axiom::Pi);
-        self.create_def(vec![ax, domain.link, co_domain.link])
+        self.create_def(ax, vec![domain.link, co_domain.link])
     }
 
     fn lam(&mut self, ty : &Def) -> Def {
         let ax = self.axiom(Axiom::Lam);
-        self.create_def(vec![ax, ty.link, DefLink::null()])
+        self.create_def(ax, vec![ty.link, DefLink::null()])
     }
 
     fn var(&mut self, lam: &Def) -> Def {
         let ax = self.axiom(Axiom::Var);
-        self.create_def(vec![ax, lam.link])
+        self.create_def(ax, vec![lam.link])
     }
 
     fn set_body(&mut self, lam: &Def, body: &Def){
-        assert_eq!(*lam.link.ops.get(0), self.axiom(Axiom::Lam));
-        lam.set_op(2, body);
+        assert_eq!(lam.link.ax, self.axiom(Axiom::Lam));
+        lam.set_op(1, body);
     }
 }
-
-
 
 pub struct DepCheck {
     visited: HashSet<DefLink>
@@ -257,9 +281,11 @@ impl DepCheck {
             return true;
         }
 
-        for dep_ptr in &current.ops {
-            if !self.valid_impl(*dep_ptr){
-                return false
+        if let DefKind::Node(ops) = &current.kind{
+            for dep_ptr in ops {
+                if !self.valid_impl(*dep_ptr){
+                    return false
+                }
             }
         }
 

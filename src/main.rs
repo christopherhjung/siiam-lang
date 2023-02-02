@@ -89,7 +89,7 @@ pub fn main() {
     let [cn, var] = {
         let mut builder = world.builder();
 
-        let one = builder.lit_int(1);
+        //let one = builder.lit_int(1);
 
         let bot = builder.bot();
         let cn = builder.lam(&bot);

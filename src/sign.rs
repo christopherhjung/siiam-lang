@@ -12,7 +12,7 @@ use std::ptr::{eq, null};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 use sha2::digest::Update;
-use crate::def::{DefModel, Def, DefLink, Mode, DefKind};
+use crate::def::{DefModel, Def, DefLink, Mode, DefState, DefKind};
 use crate::utils::UnsafeMut;
 use crate::world::World;
 use crate::{Array, WorldImpl};
@@ -75,18 +75,30 @@ impl AcyclicSigner{
     pub fn sign(def: &DefModel) -> Signature {
         let mut hash = Sha256::new();
 
-        for op_ptr in &def.ops{
-            let sign = if let DefKind::Constructed(sign) = op_ptr.kind{
-                sign
-            }else{
-                Signature::zero()
-            };
 
-            hash = Digest::chain( hash, sign.data)
+        if let DefState::Constructed(sign) = &def.ax.state{
+            hash = Digest::chain( hash, sign);
+        }else{
+            panic!()
         }
 
-        let data_arr = unsafe{std::slice::from_raw_parts(def.data.get_ptr(0), def.data.len())};
-        hash = Update::chain(hash, data_arr);
+        match &def.kind {
+            DefKind::Node(ops) => {
+                for op_ptr in ops{
+                    let sign = if let DefState::Constructed(sign) = op_ptr.state {
+                        sign
+                    }else{
+                        Signature::zero()
+                    };
+
+                    hash = Digest::chain( hash, sign.data)
+                }
+            }
+            DefKind::Data(data) => {
+                let data_arr = unsafe{std::slice::from_raw_parts(data.get_ptr(0), data.len())};
+                hash = Update::chain(hash, data_arr);
+            }
+        }
 
         let arr =  hash.finalize();
 
@@ -171,17 +183,19 @@ impl<'a> CyclicSigner<'a> {
             return true;
         }
 
-        if let DefKind::Constructed(_) = curr.kind {
+        if let DefState::Constructed(_) = curr.state {
             return false;
         }
 
         let mut curr_node = self.node(curr);
 
-        for dep_ptr in &curr.ops {
-            if self.discover(*dep_ptr){
-                let dep_node = self.node(*dep_ptr);
-                if !dep_node.closed{
-                    curr_node.low_link = min(curr_node.low_link, dep_node.low_link);
+        if let DefKind::Node(ops) = &curr.kind{
+            for dep_ptr in ops {
+                if self.discover(*dep_ptr){
+                    let dep_node = self.node(*dep_ptr);
+                    if !dep_node.closed{
+                        curr_node.low_link = min(curr_node.low_link, dep_node.low_link);
+                    }
                 }
             }
         }
@@ -197,19 +211,25 @@ impl<'a> CyclicSigner<'a> {
         let mut node = self.node(def);
         let mut hash = Sha256::new();
 
-        for op in &def.ops{
-            let sign = if let DefKind::Constructed(sign) = op.kind{
-                sign
-            }else{
-                let dep_node = self.node(*op);
-                dep_node.unique().signs[slot]
-            };
 
-            hash = Digest::chain( hash, sign)
+        match &def.kind {
+            DefKind::Node(ops) => {
+                for op in ops{
+                    let sign = if let DefState::Constructed(sign) = op.state {
+                        sign
+                    }else{
+                        let dep_node = self.node(*op);
+                        dep_node.unique().signs[slot]
+                    };
+
+                    hash = Digest::chain( hash, sign)
+                }
+            }
+            DefKind::Data(data) => {
+                let data_arr = unsafe{std::slice::from_raw_parts(data.get_ptr(0), data.len())};
+                hash = Update::chain(hash, data_arr);
+            }
         }
-
-        let data_arr = unsafe{std::slice::from_raw_parts(def.data.get_ptr(0), def.data.len())};
-        hash = Update::chain(hash, data_arr);
 
         node.signs[1 - slot].data = <[u8; 32]>::from(hash.finalize());
     }
@@ -272,26 +292,34 @@ impl<'a> CyclicSigner<'a> {
         let mut map = HashMap::new();
 
         for def in unique_defs {
-            let node = self.node(*def);
-            let sign = &node.signs[unique_defs.len() % 2];
-            map.insert(*def, Box::new(DefModel {
-                ops: Array::new(def.ops.len()),
-                data: def.data.clone(),
-                kind: DefKind::Constructed(*sign)
-            }));
+            if let DefKind::Node(ops) = &def.kind{
+                let node = self.node(*def);
+                let sign = &node.signs[unique_defs.len() % 2];
+                map.insert(*def, Box::new(DefModel {
+                    ax: def.ax,
+                    kind: DefKind::Node(Array::new(ops.len())),
+                    state: DefState::Constructed(*sign)
+                }));
+            }
         }
 
         for old in unique_defs {
-            let new = map.get(old).unwrap();
-            for idx in 0 .. old.ops.len(){
-                let op = old.ops.get(idx);
-                let new_link = if let Some(new_op) = map.get(op){
-                    DefLink::from(new_op)
-                }else{
-                    *op
-                };
+            if let DefKind::Node(ops) = &old.kind{
+                let new = map.get(old).unwrap();
+                for idx in 0 .. ops.len(){
+                    let op = ops.get(idx);
+                    let new_link = if let Some(new_op) = map.get(op){
+                        DefLink::from(new_op)
+                    }else{
+                        *op
+                    };
 
-                new.ops.set(idx, new_link);
+                    if let DefKind::Node(new_ops) = &new.kind{
+                        new_ops.set(idx, new_link);
+                    }
+                }
+            }else{
+                panic!()
             }
         }
         self.add_mapping(&old_defs, &mut map);
@@ -320,8 +348,13 @@ impl<'a> CyclicSigner<'a> {
 
             UnsafeMut::from(curr_node).closed = true;
             list.push(curr);
-            for dep_ptr in &curr.ops {
-                self.collect(*dep_ptr, list)
+
+            if let DefKind::Node(ops) = &curr.kind{
+                for dep_ptr in ops {
+                    self.collect(*dep_ptr, list)
+                }
+            }else{
+                panic!();
             }
         }
     }

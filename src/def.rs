@@ -66,44 +66,24 @@ pub enum Mode {
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub enum DefState {
+    Constructed(Signature), Pending
+}
+
+#[derive(Clone)]
 pub enum DefKind {
-    Constructed(Signature), Forwarding(DefLink), Pending
+    Data(Array<u8>), Node(Array<DefLink>)
 }
 
 pub struct DefModel {
-    pub ops: Array<DefLink>,
-    pub data: Array<u8>,
-    pub kind: DefKind
+    pub ax: DefLink,
+    pub kind: DefKind,
+    pub state: DefState
 }
 
 pub struct Def {
     pub world: Rc<MutBox<WorldImpl>>,
     pub link: DefLink
-}
-
-impl DefModel {
-    pub fn new_boxed(ops : Array<DefLink>, data: Array<u8> ) -> Box<DefModel>{
-        let mut pending = false;
-        for def_ref in &ops{
-            if def_ref.is_null() || def_ref.kind == DefKind::Pending{
-                pending = true;
-            }
-        }
-
-        let mut res = Box::new( DefModel {
-            ops,
-            data,
-            kind: DefKind::Pending
-        });
-
-        res.kind  = if pending{
-            DefKind::Pending
-        }else{
-            DefKind::Constructed(AcyclicSigner::sign(&*res))
-        };
-
-        res
-    }
 }
 
 impl Def {
@@ -117,24 +97,29 @@ impl Def {
         Def { world: world.clone(), link }
     }
 
+    /*
     pub fn op( &self, idx : usize ) -> Def {
         Def::new(&self.world,*self.ops.get(idx))
-    }
+    }*/
 
     pub fn ops_offset<const COUNT: usize>(&self, offset : usize) -> [Def; COUNT]{
-        assert_eq!(COUNT + offset, self.ops.len());
-        let mut array: MaybeUninit<[Def; COUNT]> = MaybeUninit::uninit();
-        let ptr = array.as_mut_ptr() as *mut Def;
+        if let DefKind::Node(ops) = &self.kind{
+            assert_eq!(COUNT + offset, ops.len());
+            let mut array: MaybeUninit<[Def; COUNT]> = MaybeUninit::uninit();
+            let ptr = array.as_mut_ptr() as *mut Def;
 
-        unsafe {
-            for idx in offset .. self.ops.len(){
-                ptr::write(
-                    ptr.add(idx - offset),
-                    Def::new(&self.world, *self.ops.get(idx))
-                );
+            unsafe {
+                for idx in offset .. ops.len(){
+                    ptr::write(
+                        ptr.add(idx - offset),
+                        Def::new(&self.world, *ops.get(idx))
+                    );
+                }
+
+                array.assume_init()
             }
-
-            array.assume_init()
+        }else{
+            panic!()
         }
     }
 
@@ -149,26 +134,28 @@ impl Def {
     fn link(&self) -> DefLink {
         self.link
     }
-
+/*
     pub fn op_len(&self) -> usize{
         self.ops.len()
-    }
-
+    }*/
+/*
     pub fn data_len(&self) -> usize{
         self.data.len()
-    }
-
+    }*/
+/*
     pub fn has(&self, idx: usize) -> bool {
         !self.ops.get(idx).is_null()
-    }
-
+    }*/
+/*
     pub fn data_arr(&self) -> &[u8]{
         let def = unsafe{&*self.link };
         unsafe { std::slice::from_raw_parts(def.data.get_ptr(0), def.data.len()) }
-    }
+    }*/
 
     pub fn set_op( &self, idx : usize, op: &Def){
-        self.ops.set(idx, op.link())
+        if let DefKind::Node(ops) = &self.kind{
+            ops.set(idx, op.link())
+        }
     }
 /*
     pub fn data<T>( &self, idx : usize ) -> &T{
@@ -184,7 +171,7 @@ impl Def {
     }*/
 
     pub fn sign(&self) -> Option<Signature>{
-        if let DefKind::Constructed(sign) = &self.kind{
+        if let DefState::Constructed(sign) = &self.state {
             Some(*sign)
         }else{
             None
