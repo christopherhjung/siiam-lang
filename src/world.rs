@@ -10,6 +10,7 @@ use std::ptr;
 use std::ptr::{null, null_mut};
 use std::rc::{Rc, Weak};
 use sha2::{Digest, Sha256};
+use sha2::digest::generic_array::arr;
 use sha2::digest::Update;
 use crate::sign::{AcyclicSigner, CyclicSigner, Signature};
 use crate::array::Array;
@@ -43,7 +44,7 @@ pub struct WorldImpl {
 #[derive(EnumIter, Hash, Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Axiom{
     Bot, Tuple, Pack, Extract, App, Pi, Lam, Var,
-    TypeI32
+    TyI32
 }
 
 impl WorldImpl {
@@ -125,7 +126,7 @@ pub struct Builder{
     pending : HashMap<DefLink, Box<DefModel>>,
 }
 
-macro_rules! arr(
+macro_rules! arr_test(
     ($size: expr, $factory: expr) => ({
         unsafe fn get_item_ptr<T>(slice: *mut [T], index: usize) -> *mut T {
             (slice as *mut T).offset(index as isize)
@@ -148,25 +149,26 @@ impl Builder{
     }
 
     pub fn construct_defs<const COUNT: usize>(&mut self, defs: &[&Def; COUNT]) -> [Def; COUNT]{
-        let def = defs[0];
-        let link = def.link;
-        if def.kind == DefKind::Pending && DepCheck::valid(link){
-            let mut signer = CyclicSigner::new( self.world.get());
-            signer.discover(def.link);
+        let mut signer = CyclicSigner::new( self.world.get());
 
-            arr!(COUNT, |i: usize| {
-                let old = defs[i].link;
-                let new = signer.old2new(old).unwrap();
-                Def::new(&self.world, new)
-            })
-        }else{
-            panic!()
+        for def in *defs{
+            if !DepCheck::valid(def.link) {
+                panic!()
+            }
+
+            signer.discover(def.link);
         }
+
+        arr_test!(COUNT, |i: usize| {
+            let old = defs[i].link;
+            let new = signer.old2new(old);
+            Def::new(&self.world, new)
+        })
     }
 }
 
 impl DefFactory for Builder{
-    fn new_def(&mut self, ops: Vec<DefLink>) -> Def {
+    fn create_def(&mut self, ops: Vec<DefLink>) -> Def {
         let def = DefModel::new_boxed(Array::from(ops), Array::empty());
 
         let link = if def.kind == DefKind::Pending{
@@ -187,42 +189,42 @@ impl DefFactory for Builder{
 
 
 pub trait DefFactory {
-    fn new_def(&mut self, ops: Vec<DefLink>) -> Def;
+    fn create_def(&mut self, ops: Vec<DefLink>) -> Def;
     fn axiom(&mut self, ax : Axiom) -> DefLink;
 
     fn bot(&mut self) -> Def {
         let ax = self.axiom(Axiom::Bot);
-        self.new_def(vec![ax])
+        self.create_def(vec![ax])
     }
 
     fn pack(&mut self, shape: &Def, body: &Def) -> Def {
         let ax = self.axiom(Axiom::Pack);
-        self.new_def(vec![ax, shape.link, body.link])
+        self.create_def(vec![ax, shape.link, body.link])
     }
 
     fn extract(&mut self, tup: &Def, index: &Def) -> Def {
         let ax = self.axiom(Axiom::Extract);
-        self.new_def(vec![ax, tup.link, index.link])
+        self.create_def(vec![ax, tup.link, index.link])
     }
 
     fn app(&mut self, callee: &Def, arg: &Def) -> Def {
         let ax = self.axiom(Axiom::App);
-        self.new_def(vec![ax, callee.link, arg.link])
+        self.create_def(vec![ax, callee.link, arg.link])
     }
 
     fn pi(&mut self, domain: &Def, co_domain : &Def) -> Def {
         let ax = self.axiom(Axiom::Pi);
-        self.new_def(vec![ax, domain.link, co_domain.link])
+        self.create_def(vec![ax, domain.link, co_domain.link])
     }
 
     fn lam(&mut self, ty : &Def) -> Def {
         let ax = self.axiom(Axiom::Lam);
-        self.new_def(vec![ax, ty.link, DefLink::null()])
+        self.create_def(vec![ax, ty.link, DefLink::null()])
     }
 
     fn var(&mut self, lam: &Def) -> Def {
         let ax = self.axiom(Axiom::Var);
-        self.new_def(vec![ax, lam.link])
+        self.create_def(vec![ax, lam.link])
     }
 
     fn set_body(&mut self, lam: &Def, body: &Def){
@@ -230,8 +232,6 @@ pub trait DefFactory {
         lam.set_op(2, body);
     }
 }
-
-
 
 
 

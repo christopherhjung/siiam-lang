@@ -96,3 +96,19 @@ impl<T> MutBox<T> {
         unsafe {&mut *mut_ptr}
     }
 }
+
+macro_rules! arr(
+    ($size: expr, $factory: expr) => ({
+        unsafe fn get_item_ptr<T>(slice: *mut [T], index: usize) -> *mut T {
+            (slice as *mut T).offset(index as isize)
+        }
+
+        let mut arr = ::std::mem::MaybeUninit::<[_; $size]>::uninit();
+        unsafe {
+            for i in 0..$size {
+                ::std::ptr::write(get_item_ptr(arr.as_mut_ptr(), i), $factory(i));
+            }
+            arr.assume_init()
+        }
+    })
+);

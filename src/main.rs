@@ -81,41 +81,27 @@ pub fn main() {
     let mut world = World::new();
 /*
     let zero = world.lit_int(0);
-    let one = world.lit_int(1);
 
     let int_ty = world.ty_int(32);
     let bot = world.bot();
     let pi = world.pi(int_ty, bot);*/
 
-    let mut builder = world.builder();
+    let [cn, var] = {
+        let mut builder = world.builder();
 
-    let bot = builder.bot();
-    let mut cn = builder.lam(&bot);
-    let mut cn2 = builder.lam(&bot);
-    builder.set_body(&cn, &cn2);
-    builder.set_body(&cn2, &cn);
+        let one = builder.lit_int(1);
 
-    let [cn, var] = builder.construct_defs(&[&cn, &cn2]);
+        let bot = builder.bot();
+        let cn = builder.lam(&bot);
+        let var = builder.var(&cn);
+        builder.set_body(&cn, &var);
+        builder.construct_defs(&[&cn, &var])
+    };
 
     println!("-----");
     println!("{:?}", cn.sign());
     println!("{:?}", var.sign());
     println!("-----");
-
-    let bot2 = builder.bot();
-    let mut cn2 = builder.lam(&bot2);
-    builder.set_body(&cn2, &cn2);
-    let cn2 = builder.construct_def(&cn2);
-
-    println!("-----");
-    println!("{:?}", cn2.sign());
-    println!("-----");
-
-    //println!("{:?} {:?}", var.link, var2.link);
-    //println!("{:?} {:?}", cn.link, cn2.link);
-
-    //let [ty, body] = cn2.args();
-    //let [a, b] = world.construct([&cn2, &cn]);
 
     println!("sss");
     let duration = start.elapsed();

@@ -103,16 +103,16 @@ pub struct SignNode{
     low_link : usize,
     closed: bool,
     link: DefLink,
-    forward: UnsafeMut<SignNode>,
+    unique: UnsafeMut<SignNode>,
     signs : [Signature; 2]
 }
 
 impl SignNode{
-    pub fn forward(&self) -> &Self{
-        if self.forward.is_null(){
+    pub fn unique(&self) -> &Self{
+        if self.unique.is_null(){
             self
         }else{
-            self.forward.forward()
+            self.unique.unique()
         }
     }
 }
@@ -134,11 +134,11 @@ impl<'a> CyclicSigner<'a> {
         }
     }
 
-    pub fn old2new(&mut self, link: DefLink) -> Option<DefLink>{
-        if let Some(link) = self.old2new.get(&link){
-            Some(*link)
+    pub fn old2new(&mut self, old: DefLink) -> DefLink{
+        if let Some(new) = self.old2new.get(&old){
+            *new
         }else{
-            None
+            old
         }
     }
 
@@ -153,7 +153,7 @@ impl<'a> CyclicSigner<'a> {
                           low_link: last_idx,
                           closed : false,
                           link,
-                          forward: UnsafeMut::null(),
+                          unique: UnsafeMut::null(),
                           signs : [Signature::zero(); 2]
                       }
                   )
@@ -202,7 +202,7 @@ impl<'a> CyclicSigner<'a> {
                 sign
             }else{
                 let dep_node = self.node(*op);
-                dep_node.forward().signs[slot]
+                dep_node.unique().signs[slot]
             };
 
             hash = Digest::chain( hash, sign)
@@ -229,8 +229,8 @@ impl<'a> CyclicSigner<'a> {
         self.filter(&old_defs);
     }
 
-    fn filter(&mut self, old_defs: &Vec<DefLink>){
-        let mut anomalies = HashMap::new();
+    fn unique_defs(&mut self, old_defs: &Vec<DefLink>) -> Vec<DefLink>{
+        let mut unique_map = HashMap::new();
         let mut unique_defs = Vec::new();
         let len = old_defs.len();
 
@@ -238,13 +238,23 @@ impl<'a> CyclicSigner<'a> {
             let mut node = self.node(*old);
             let sign = &node.signs[len % 2];
 
-            if anomalies.contains_key(sign){
-                node.forward = self.node(*anomalies.get(sign).unwrap());
+            if unique_map.contains_key(sign){
+                node.unique = self.node(*unique_map.get(sign).unwrap());
             }else{
-                anomalies.insert(*sign, *old);
+                unique_map.insert(*sign, *old);
                 unique_defs.push(*old);
             }
         }
+
+        unique_defs
+    }
+
+    fn filter(&mut self, old_defs: &Vec<DefLink>){
+        if old_defs.len() == 1{
+            //no cycle
+        }
+
+        let mut unique_defs = self.unique_defs(old_defs);
 
         if unique_defs.len() != old_defs.len(){
             for old in &unique_defs {
@@ -291,11 +301,11 @@ impl<'a> CyclicSigner<'a> {
         for old in defs {
             let node = self.node(*old);
 
-            let new = if node.forward.is_null(){
+            let new = if node.unique.is_null(){
                 let model = map.remove(old).unwrap();
                 self.world.insert_def(model)
             }else{
-                *self.old2new.get(&node.forward.link).unwrap()
+                *self.old2new.get(&node.unique.link).unwrap()
             };
 
             self.old2new.insert(*old, new);
