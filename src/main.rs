@@ -102,14 +102,26 @@ pub fn main() {
         let var = builder.var(&cn);
         let add_one = builder.add(&var, &one);
         builder.set_body(&cn, &add_one);
-        //builder.construct_defs(&[&pi, &bot])
+        builder.construct_def(&i32_ty)
+    };
 
-        //builder.construct_defs(&[&cn, &i32_ty])
+    let cn2 = {
+        let mut builder = world.builder();
+
+        let i32_ty = builder.ty_int(32);
+        let one = builder.lit(1, &i32_ty);
+
+        let pi = builder.pi(&i32_ty, &i32_ty);
+        let cn = builder.lam(&pi);
+        let var = builder.var(&cn);
+        let add_one = builder.add(&var, &one);
+        builder.set_body(&cn, &add_one);
         builder.construct_def(&i32_ty)
     };
 
     println!("-----");
     println!("{:?}", cn.sign());
+    println!("{:?}", cn2.sign());
     println!("-----");
 
     println!("sss");

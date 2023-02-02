@@ -80,14 +80,17 @@ impl WorldImpl {
     }*/
 
     pub fn insert_def(&mut self, def : Box<DefModel>) -> DefLink{
-        let def_ptr = DefLink::from(&def);
-        if def.state == DefState::Pending{
-            panic!()
-        }else if let DefState::Constructed(sign) = def.state {
-            self.sea.insert(sign, def);
+        if let DefState::Constructed(sign) = def.state {
+            if let Some(last) = self.sea.get(&sign){
+                DefLink::from(last)
+            }else{
+                let link = DefLink::from(&def);
+                self.sea.insert(sign, def);
+                link
+            }
+        }else{
+            panic!();
         }
-
-        def_ptr
     }
 
     pub fn new_boxed() -> Box<WorldImpl>{
