@@ -37,7 +37,6 @@ impl Clone for World{
 }
 
 pub struct WorldImpl {
-    sign_size: usize,
     sea : HashMap<Signature, Box<DefModel>>,
     axioms : HashMap<Axiom, DefLink>,
     axioms_rev : HashMap<DefLink, Axiom>,
@@ -51,33 +50,9 @@ pub enum Axiom{
 }
 
 impl WorldImpl {
-    fn as_mut(&self) -> *mut WorldImpl {
-        self as *const _ as *mut WorldImpl
-    }
-
     pub fn axiom( &self, ax : Axiom ) -> DefLink {
         *self.axioms.get(&ax).unwrap()
     }
-/*
-    fn create_node_def(&mut self, ax: DefLink, ops : Vec<DefLink>) -> DefLink {
-        let def = Box::from(DefModel{
-            ax,
-            kind: DefKind::Node(Array::from(ops)),
-            state: DefState::Pending
-        });
-
-        self.insert_def(def)
-    }
-
-    fn create_data_def(&mut self, ax: DefLink, data : Array<u8>) -> DefLink {
-        let def = Box::from(DefModel{
-            ax,
-            kind: DefKind::Data(data),
-            state: DefState::None
-        });
-
-        self.insert_def(def)
-    }*/
 
     pub fn insert_def(&mut self, def : Box<DefModel>) -> DefLink{
         if let DefState::Constructed(sign) = def.state {
@@ -95,7 +70,6 @@ impl WorldImpl {
 
     pub fn new_boxed() -> Box<WorldImpl>{
         let mut world = Box::new(WorldImpl {
-            sign_size:  32,
             sea:        HashMap::new(),
             axioms:     HashMap::new(),
             axioms_rev: HashMap::new()
@@ -107,7 +81,6 @@ impl WorldImpl {
             state: DefState::Constructed(Signature::zero())
         }));
         let mut link = root;
-        println!("{:?}", link.state);
 
         for axiom in Axiom::iter(){
             let mut axiom_def = Box::from(DefModel{
@@ -117,7 +90,6 @@ impl WorldImpl {
             });
             axiom_def.state = DefState::Constructed(AcyclicSigner::sign(&*axiom_def));
             link = world.insert_def(axiom_def);
-            println!("{:?}", link.state);
             world.axioms.insert(axiom, link);
             world.axioms_rev.insert(link, axiom);
         }
