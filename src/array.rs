@@ -64,7 +64,7 @@ impl<T> Drop for Array<T> {
         unsafe {
             dealloc(
                 self.ptr as *mut u8,
-                Layout::from_size_align_unchecked(self.len, std::mem::size_of::<T>()),
+                Layout::from_size_align_unchecked(self.len * std::mem::size_of::<T>(), std::mem::size_of::<usize>()),
             )
         };
     }

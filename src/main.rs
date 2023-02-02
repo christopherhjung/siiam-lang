@@ -40,9 +40,7 @@ mod sign;
 mod array;
 mod def;
 mod utils;
-
-
-
+mod data;
 
 pub fn main() {
 
@@ -88,21 +86,27 @@ pub fn main() {
     let bot = world.bot();
     let pi = world.pi(int_ty, bot);*/
 
-    let [cn, var] = {
+    println!("-----------------");
+    println!("-----------------");
+    println!("-----------------");
+    println!("-----------------");
+    let [cn, pi] = {
         let mut builder = world.builder();
 
-        //let one = builder.lit_int(1);
+        let i32_ty = builder.ty_int(32);
+        //let one = builder.lit(1, &i32_ty);
 
         let bot = builder.bot();
-        let cn = builder.lam(&bot);
-        let var = builder.var(&cn);
-        builder.set_body(&cn, &var);
-        builder.construct_defs(&[&cn, &var])
+        let pi = builder.pi(&bot, &i32_ty);
+        //let cn = builder.lam(&pi);
+        //let var = builder.var(&cn);
+        //builder.set_body(&cn, &one);
+        builder.construct_defs(&[&pi, &bot])
     };
 
     println!("-----");
     println!("{:?}", cn.sign());
-    println!("{:?}", var.sign());
+    println!("{:?}", pi.sign());
     println!("-----");
 
     println!("sss");

@@ -14,6 +14,7 @@ use crate::array::Array;
 
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
+use crate::data::Data;
 use crate::token::TokenKind;
 use crate::utils::{MutBox, UnsafeMut};
 use crate::world::World;
@@ -70,9 +71,8 @@ pub enum DefState {
     Constructed(Signature), Pending
 }
 
-#[derive(Clone)]
 pub enum DefKind {
-    Data(Array<u8>), Node(Array<DefLink>)
+    Data(Data), Node(Array<DefLink>)
 }
 
 pub struct DefModel {
@@ -137,48 +137,15 @@ impl Def {
         self.ops_offset(0)
     }
 
-    pub fn args<const COUNT: usize>(&self) -> [Def; COUNT]{
-        self.ops_offset(1)
-    }
-
     fn link(&self) -> DefLink {
         self.link
     }
-/*
-    pub fn op_len(&self) -> usize{
-        self.ops.len()
-    }*/
-/*
-    pub fn data_len(&self) -> usize{
-        self.data.len()
-    }*/
-/*
-    pub fn has(&self, idx: usize) -> bool {
-        !self.ops.get(idx).is_null()
-    }*/
-/*
-    pub fn data_arr(&self) -> &[u8]{
-        let def = unsafe{&*self.link };
-        unsafe { std::slice::from_raw_parts(def.data.get_ptr(0), def.data.len()) }
-    }*/
 
     pub fn set_op( &self, idx : usize, op: &Def){
         if let DefKind::Node(ops) = &self.kind{
             ops.set(idx, op.link())
         }
     }
-/*
-    pub fn data<T>( &self, idx : usize ) -> &T{
-        let def = unsafe{&*self.link };
-        let data_ptr = unsafe{def.data.get_ptr(idx)};
-        unsafe {&*(data_ptr as *const T)}
-    }*/
-
-    /*
-    pub fn construct(&self) -> Def{
-        let new_def = self.world.get().construct(self.link);
-        Def::new(&self.world,new_def)
-    }*/
 
     pub fn sign(&self) -> Option<Signature>{
         if let DefState::Constructed(sign) = &self.state {

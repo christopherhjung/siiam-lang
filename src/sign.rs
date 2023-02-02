@@ -80,7 +80,6 @@ impl AcyclicSigner{
     pub fn sign(def: &DefModel) -> Signature {
         let mut hash = Sha256::new();
 
-
         if let DefState::Constructed(sign) = &def.ax.state{
             hash = Digest::chain( hash, sign);
         }else{
@@ -100,13 +99,11 @@ impl AcyclicSigner{
                 }
             }
             DefKind::Data(data) => {
-                let data_arr = unsafe{std::slice::from_raw_parts(data.get_ptr(0), data.len())};
-                hash = Update::chain(hash, data_arr);
+                hash = Update::chain(hash, data.slice());
             }
         }
 
         let arr =  hash.finalize();
-
         Signature{ data: <[u8; 32]>::from(arr) }
     }
 }
@@ -216,7 +213,6 @@ impl<'a> CyclicSigner<'a> {
         let mut node = self.node(def);
         let mut hash = Sha256::new();
 
-
         match &def.kind {
             DefKind::Node(ops) => {
                 for op in ops{
@@ -231,8 +227,7 @@ impl<'a> CyclicSigner<'a> {
                 }
             }
             DefKind::Data(data) => {
-                let data_arr = unsafe{std::slice::from_raw_parts(data.get_ptr(0), data.len())};
-                hash = Update::chain(hash, data_arr);
+                hash = Update::chain(hash, data.slice());
             }
         }
 
@@ -297,15 +292,19 @@ impl<'a> CyclicSigner<'a> {
         let mut map = HashMap::new();
 
         for def in unique_defs {
-            if let DefKind::Node(ops) = &def.kind{
-                let node = self.node(*def);
-                let sign = &node.signs[unique_defs.len() % 2];
-                map.insert(*def, Box::new(DefModel {
-                    ax: def.ax,
-                    kind: DefKind::Node(Array::new(ops.len())),
-                    state: DefState::Constructed(*sign)
-                }));
-            }
+            let op_len = if let DefKind::Node(ops) = &def.kind{
+                ops.len()
+            }else{
+                0
+            };
+
+            let node = self.node(*def);
+            let sign = &node.signs[unique_defs.len() % 2];
+            map.insert(*def, Box::new(DefModel {
+                ax: def.ax,
+                kind: DefKind::Node(Array::new(op_len)),
+                state: DefState::Constructed(*sign)
+            }));
         }
 
         for old in unique_defs {
@@ -323,8 +322,6 @@ impl<'a> CyclicSigner<'a> {
                         new_ops.set(idx, new_link);
                     }
                 }
-            }else{
-                panic!()
             }
         }
         self.add_mapping(&old_defs, &mut map);
@@ -351,15 +348,12 @@ impl<'a> CyclicSigner<'a> {
                 return
             }
 
-            UnsafeMut::from(curr_node).closed = true;
             list.push(curr);
-
+            UnsafeMut::from(curr_node).closed = true;
             if let DefKind::Node(ops) = &curr.kind{
                 for dep_ptr in ops {
                     self.collect(*dep_ptr, list)
                 }
-            }else{
-                panic!();
             }
         }
     }

@@ -130,3 +130,20 @@ macro_rules! array {
         arr
     });
 }
+
+#[macro_export]
+macro_rules! arr_for_each (
+    ($size: expr, $factory: expr) => ({
+        unsafe fn get_item_ptr<T>(slice: *mut [T], index: usize) -> *mut T {
+            (slice as *mut T).add(index)
+        }
+
+        let mut arr = MaybeUninit::<[_; $size]>::uninit();
+        unsafe {
+            for i in 0..$size {
+                ptr::write(get_item_ptr(arr.as_mut_ptr(), i), $factory(i));
+            }
+            arr.assume_init()
+        }
+    })
+);
