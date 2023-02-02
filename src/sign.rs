@@ -108,11 +108,11 @@ pub struct SignNode{
 }
 
 impl SignNode{
-    pub fn get_forward(&self) -> &Self{
+    pub fn forward(&self) -> &Self{
         if self.forward.is_null(){
             self
         }else{
-            self.forward.get_forward()
+            self.forward.forward()
         }
     }
 }
@@ -187,7 +187,7 @@ impl<'a> CyclicSigner<'a> {
         }
 
         if curr_node.index == curr_node.low_link{
-            self.sign_impl(curr);
+            self.sign(curr);
         }
 
         return true;
@@ -202,7 +202,7 @@ impl<'a> CyclicSigner<'a> {
                 sign
             }else{
                 let dep_node = self.node(*op);
-                dep_node.get_forward().signs[slot]
+                dep_node.forward().signs[slot]
             };
 
             hash = Digest::chain( hash, sign)
@@ -214,22 +214,27 @@ impl<'a> CyclicSigner<'a> {
         node.signs[1 - slot].data = <[u8; 32]>::from(hash.finalize());
     }
 
-    fn sign_impl(&mut self, curr: DefLink){
-        let mut old_defs = Vec::new();
-        self.collect(curr, &mut old_defs);
-
-        let len = old_defs.len();
-
-        for epoch in 0 .. len{
-            for def_ptr in &old_defs {
-                self.sign_node(*def_ptr, epoch % 2)
+    fn blend(&mut self, vec: &Vec<DefLink>){
+        for epoch in 0 .. vec.len(){
+            for def in vec {
+                self.sign_node(*def, epoch % 2)
             }
         }
+    }
 
+    fn sign(&mut self, curr: DefLink){
+        let mut old_defs = Vec::new();
+        self.collect(curr, &mut old_defs);
+        self.blend(&old_defs);
+        self.filter(&old_defs);
+    }
+
+    fn filter(&mut self, old_defs: &Vec<DefLink>){
         let mut anomalies = HashMap::new();
         let mut unique_defs = Vec::new();
+        let len = old_defs.len();
 
-        for old in &old_defs {
+        for old in old_defs {
             let mut node = self.node(*old);
             let sign = &node.signs[len % 2];
 
@@ -247,16 +252,16 @@ impl<'a> CyclicSigner<'a> {
                 node.signs = [Signature::zero(); 2];
             }
 
-            for epoch in 0 .. unique_defs.len(){
-                for old in &unique_defs {
-                    self.sign_node(*old, epoch % 2)
-                }
-            }
+            self.blend(&unique_defs);
         }
 
+        self.create_new_defs(&old_defs, &unique_defs);
+    }
+
+    fn create_new_defs(&mut self, old_defs: &Vec<DefLink>, unique_defs: &Vec<DefLink>){
         let mut map = HashMap::new();
 
-        for def in &unique_defs {
+        for def in unique_defs {
             let node = self.node(*def);
             let sign = &node.signs[unique_defs.len() % 2];
             map.insert(*def, Box::new(DefModel {
@@ -266,7 +271,7 @@ impl<'a> CyclicSigner<'a> {
             }));
         }
 
-        for old in &unique_defs {
+        for old in unique_defs {
             let new = map.get(old).unwrap();
             for idx in 0 .. old.ops.len(){
                 let op = old.ops.get(idx);
@@ -279,8 +284,11 @@ impl<'a> CyclicSigner<'a> {
                 new.ops.set(idx, new_link);
             }
         }
+        self.add_mapping(&old_defs, &mut map);
+    }
 
-        for old in &old_defs {
+    fn add_mapping(&mut self, defs: &Vec<DefLink>, map : &mut HashMap<DefLink, Box<DefModel>>){
+        for old in defs {
             let node = self.node(*old);
 
             let new = if node.forward.is_null(){
