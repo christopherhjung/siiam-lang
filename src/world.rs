@@ -4,7 +4,6 @@ use std::cell::{Cell, RefCell, RefMut, UnsafeCell};
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
-use std::collections::hash_map::OccupiedError;
 use std::hash::Hash;
 use std::mem::MaybeUninit;
 use std::ops::{Deref, DerefMut, Index};
@@ -165,14 +164,16 @@ impl Builder{
         })
     }
 
-    fn insert_def(&mut self, model: Box<DefModel>) -> Def{
-        let link = DefMap::get_or_insert(&mut self.pending, model);
+    fn insert_def(&mut self, model: Box<DefModel>) -> DefLink{
+        DefMap::get_or_insert(&mut self.pending, model)
+    }
+
+    fn create_node_def(&mut self, ax: DefLink, ops: Array<DefLink>) -> Def {
+        let link = self.create_node_def_link(ax, ops);
         Def::new(&self.world, link)
     }
-}
 
-impl Builder{
-    fn create_node_def(&mut self, ax: DefLink, ops: Array<DefLink>) -> Def {
+    fn create_node_def_link(&mut self, ax: DefLink, ops: Array<DefLink>) -> DefLink {
         let def = Box::from(DefModel{
             ax,
             kind: DefKind::Node(ops),
@@ -183,15 +184,23 @@ impl Builder{
     }
 
     fn create_data_def(&mut self, data: Data) -> Def {
-        let data_ax = self.world.axiom(Axiom::Data);
+        let link = self.create_data_def_link(data);
+        Def::new(&self.world, link)
+    }
+
+    fn create_data_def_link(&mut self, data: Data) -> DefLink {
+        let ax = self.world.axiom(Axiom::Data);
         let def = Box::from(DefModel{
-            ax: data_ax,
+            ax,
             kind: DefKind::Data(data),
             state: DefState::Pending
         });
 
         self.insert_def(def)
     }
+
+
+
 
     fn axiom_raw(&self, ax: Axiom) -> DefLink {
         self.world.axiom(ax)
