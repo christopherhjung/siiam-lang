@@ -6,9 +6,13 @@
 
 use std::borrow::BorrowMut;
 use std::cell::{Cell, RefCell};
+use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::ptr;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
+use sha2::digest::{FixedOutput, Update};
+use sha2::{Digest, Sha224, Sha256, Sha512};
 
 use crate::ast::{Decl, Module};
 use crate::bind::NameBinder;
@@ -23,6 +27,7 @@ use crate::visitor::Visitor;
 use crate::print::ProgramPrinter;
 use crate::array::Array;
 use crate::data::Data;
+use crate::sign::Signature;
 
 
 mod lexer;
@@ -91,19 +96,6 @@ pub fn main() {
     println!("-----------------");
     println!("-----------------");
     println!("-----------------");
-    let cn = {
-        let mut builder = world.builder();
-
-        let i32_ty = builder.ty_int(32);
-        let one = builder.lit(1, &i32_ty);
-
-        let pi = builder.pi(&i32_ty, &i32_ty);
-        let cn = builder.lam(&pi);
-        let var = builder.var(&cn);
-        let add_one = builder.add(&var, &one);
-        builder.set_body(&cn, &add_one);
-        builder.construct_def(&i32_ty)
-    };
 
     let cn2 = {
         let mut builder = world.builder();
@@ -113,14 +105,18 @@ pub fn main() {
 
         let pi = builder.pi(&i32_ty, &i32_ty);
         let cn = builder.lam(&pi);
-        let var = builder.var(&cn);
-        let add_one = builder.add(&var, &one);
-        builder.set_body(&cn, &add_one);
-        builder.construct_def(&i32_ty)
+        let mut test = Box::new(builder.var(&cn));
+        let mut test2 = Box::new(builder.var(&cn));
+
+        for _ in 0 .. 300{
+            test2 = Box::new(builder.add(&test2, &one));
+        }
+
+        builder.set_body(&cn, &test2);
+        builder.construct_def(&cn)
     };
 
     println!("-----");
-    println!("{:?}", cn.sign());
     println!("{:?}", cn2.sign());
     println!("-----");
 
@@ -128,10 +124,24 @@ pub fn main() {
     let duration = start.elapsed();
     println!("Time elapsed in expensive_function() is: {:?}", duration);
 
-    let test = array![2, 3];
+    let start = Instant::now();
+
+    for a in 0 ..200*200{
+        let mut hash = Sha512::new();
+        Update::update(&mut hash,"00000000000000000000000000000000");
+        Update::update(&mut hash,"00000000000000000000000000000000");
+        Update::update(&mut hash,"00000000000000000000000000000000");
+        hash.finalize();
+    }
+
+    let duration = start.elapsed();
+    println!("Time elapsed in expensive_function() is: {:?}", duration);
 
 
 
+    let start = Instant::now();
+    let duration = start.elapsed();
+    println!("Time elapsed in expensive_function() is: {:?}", duration);
 }
 
 

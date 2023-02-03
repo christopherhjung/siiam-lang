@@ -1,5 +1,7 @@
 use std::alloc::{alloc, dealloc, Layout};
+use std::ptr;
 use std::ptr::{null, null_mut};
+use crate::zip;
 
 pub struct Data {
     ptr: *mut u8,
@@ -60,5 +62,11 @@ impl Drop for Data{
                 Self::layout(self.len)
             )
         };
+    }
+}
+
+impl PartialEq for Data{
+    fn eq(&self, other: &Self) -> bool {
+        self.slice() == other.slice()
     }
 }

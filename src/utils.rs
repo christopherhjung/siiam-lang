@@ -147,3 +147,12 @@ macro_rules! arr_for_each (
         }
     })
 );
+
+#[macro_export]
+macro_rules! zip {
+    ($x: expr) => ($x);
+    ($x: expr, $($y: expr), +) => (
+        $x.into_iter().zip(
+            zip!($($y), +))
+    )
+}

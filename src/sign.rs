@@ -3,6 +3,7 @@ use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
+use std::io::BufRead;
 use std::iter::Map;
 use std::mem::MaybeUninit;
 use hex::ToHex;
@@ -11,7 +12,7 @@ use sha2::{Digest, Sha256, Sha384, Sha512};
 use std::ptr::{eq, null};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
-use sha2::digest::Update;
+use sha2::digest::{FixedOutput, Update};
 use crate::def::{DefModel, Def, DefLink, Mode, DefState, DefKind};
 use crate::utils::UnsafeMut;
 use crate::world::World;
@@ -23,36 +24,21 @@ pub struct Signature {
 }
 
 impl Signature {
-    pub fn toHex( &self ) -> String{
+    pub fn to_hex(&self ) -> String{
         return hex::encode(self.data);
     }
     pub fn is_zero( &self ) -> bool{
         self.data == [0; 32]
     }
 
-    pub fn random(  ) -> Signature {
-        let s: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(7)
-            .map(char::from)
-            .collect();
-
-        let output = Sha256::digest(s.as_bytes());
-        let mut hash = Signature { data: [0; 32] };
-        hash.data.copy_from_slice(output.as_ref());
-        hash
-    }
-
     pub fn zero() -> Signature {
         Signature { data: [0; 32] }
     }
-
-
 }
 
 impl Debug for Signature{
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&*self.toHex())
+        f.write_str(&*self.to_hex())
     }
 }
 
@@ -78,7 +64,7 @@ pub struct AcyclicSigner{
 
 impl AcyclicSigner{
     pub fn sign(def: &DefModel) -> Signature {
-        let mut hash = Sha256::new();
+        let mut hash = Sha512::new();
 
         if let DefState::Constructed(sign) = &def.ax.state{
             hash = Digest::chain( hash, sign);
@@ -104,7 +90,7 @@ impl AcyclicSigner{
         }
 
         let arr =  hash.finalize();
-        Signature{ data: <[u8; 32]>::from(arr) }
+        Signature{ data: arr.as_slice()[0..32].try_into().expect("Wrong length") }
     }
 }
 
@@ -211,10 +197,10 @@ impl<'a> CyclicSigner<'a> {
 
     fn sign_node(&mut self, def : DefLink, slot: usize){
         let mut node = self.node(def);
-        let mut hash = Sha256::new();
+        let mut hash = Sha512::new();
 
-        if let DefState::Constructed(sign) = def.ax.state{
-            hash = Update::chain(hash, sign);
+        if let DefState::Constructed(sign) = &def.ax.state{
+            Update::update( &mut hash, sign);
         }else{
             panic!()
         }
@@ -238,17 +224,19 @@ impl<'a> CyclicSigner<'a> {
                         }
                     };
 
-                    hash = Digest::chain( hash, sign)
+                    Update::update( &mut hash, sign)
                 }
             }
             DefKind::Data(data) => {
-                let slice = data.slice();
-                println!("{:?}", slice.len());
-                hash = Update::chain(hash, slice);
+                Update::update(&mut hash, data.slice());
             }
         }
 
-        node.signs[1 - slot].data = <[u8; 32]>::from(hash.finalize());
+        node.signs[1 - slot].data = hash
+            .finalize_fixed()
+            .as_slice()[0..32]
+            .try_into()
+            .expect("Wrong length")
     }
 
     fn blend(&mut self, vec: &Vec<DefLink>){
@@ -263,12 +251,11 @@ impl<'a> CyclicSigner<'a> {
         let mut old_defs = Vec::new();
         self.collect(curr, &mut old_defs);
         self.blend(&old_defs);
-        self.filter(&old_defs);
+        self.disambiguate(&old_defs);
     }
 
     fn unique_defs(&mut self, old_defs: &Vec<DefLink>) -> Vec<DefLink>{
         let mut unique_map = HashMap::new();
-        let mut unique_defs = Vec::new();
         let len = old_defs.len();
 
         for old in old_defs {
@@ -279,30 +266,29 @@ impl<'a> CyclicSigner<'a> {
                 node.unique = self.node(*unique_map.get(sign).unwrap());
             }else{
                 unique_map.insert(*sign, *old);
-                unique_defs.push(*old);
             }
         }
 
-        unique_defs
+        unique_map.values().cloned().collect()
     }
 
-    fn filter(&mut self, old_defs: &Vec<DefLink>){
+    fn disambiguate(&mut self, old_defs: &Vec<DefLink>){
         if old_defs.len() == 1{
-            //no cycle
-        }
+            self.create_new_defs(&old_defs, &old_defs);
+        }else{
+            let mut unique_defs = self.unique_defs(old_defs);
 
-        let mut unique_defs = self.unique_defs(old_defs);
+            if unique_defs.len() != old_defs.len(){
+                for old in &unique_defs {
+                    let mut node = self.node(*old);
+                    node.signs = [Signature::zero(); 2];
+                }
 
-        if unique_defs.len() != old_defs.len(){
-            for old in &unique_defs {
-                let mut node = self.node(*old);
-                node.signs = [Signature::zero(); 2];
+                self.blend(&unique_defs);
             }
 
-            self.blend(&unique_defs);
-        }
-
-        self.create_new_defs(&old_defs, &unique_defs);
+            self.create_new_defs(&old_defs, &unique_defs);
+        };
     }
 
     fn create_new_defs(&mut self, old_defs: &Vec<DefLink>, unique_defs: &Vec<DefLink>){
@@ -360,13 +346,13 @@ impl<'a> CyclicSigner<'a> {
     }
 
     fn collect(&mut self, curr: DefLink, list: &mut Vec<DefLink>){
-        if let Some(curr_node) = self.nodes.get(&curr){
+        if let Some(curr_node) = self.nodes.get_mut(&curr){
             if curr_node.index == curr_node.low_link && !list.is_empty(){
                 return
             }
 
             list.push(curr);
-            UnsafeMut::from(curr_node).closed = true;
+            curr_node.closed = true;
             if let DefKind::Node(ops) = &curr.kind{
                 for dep_ptr in ops {
                     self.collect(*dep_ptr, list)

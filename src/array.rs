@@ -1,5 +1,6 @@
 use std::alloc::{alloc, dealloc, Layout};
 use std::ptr::{null, null_mut};
+use crate::zip;
 
 pub struct Array<T> {
     ptr: *mut T,
@@ -42,6 +43,22 @@ impl<T> Array<T> {
 
     pub fn len(&self) -> usize {
         self.len
+    }
+}
+
+impl<T : PartialEq> PartialEq for Array<T>{
+    fn eq(&self, other: &Self) -> bool {
+        if self.len != other.len {
+            false
+        }else{
+            for (lhs, rhs) in zip!(self, other){
+                if lhs != rhs{
+                    return false
+                }
+            }
+
+            true
+        }
     }
 }
 

@@ -2,6 +2,7 @@ use std::alloc::alloc;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
+use std::hash::{Hash, Hasher};
 use std::mem::MaybeUninit;
 use std::ops::{Deref, Index};
 use std::ptr;
@@ -20,10 +21,36 @@ use crate::utils::{MutBox, UnsafeMut};
 use crate::world::World;
 use crate::WorldImpl;
 
-#[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct DefLink{
     ptr: *const DefModel
 }
+
+#[derive(Copy, Clone, Eq, Debug)]
+pub struct DefKey {
+    link: DefLink
+}
+
+impl DefKey {
+    pub fn new(link : DefLink) -> DefKey {
+        DefKey {
+            link
+        }
+    }
+}
+
+impl PartialEq for DefKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.link.deref() == other.link.deref()
+    }
+}
+
+impl Hash for DefKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.link.deref().hash(state);
+    }
+}
+
 
 impl DefLink{
     pub fn null() -> DefLink{
@@ -34,6 +61,12 @@ impl DefLink{
 
     pub fn is_null(&self) -> bool{
         self.ptr == null()
+    }
+
+    pub fn new(ptr: *const DefModel) -> DefLink{
+        DefLink{
+            ptr
+        }
     }
 }
 
@@ -79,6 +112,38 @@ pub struct DefModel {
     pub ax: DefLink,
     pub kind: DefKind,
     pub state: DefState
+}
+
+impl PartialEq for DefModel{
+    fn eq(&self, other: &Self) -> bool {
+        if self.ax != other.ax {
+            false
+        }else{
+            match (&self.kind, &other.kind) {
+                (DefKind::Node(lhs_ops), DefKind::Node(rhs_ops)) => {
+                    lhs_ops == rhs_ops
+                }
+                (DefKind::Data(lhs_data), DefKind::Data(rhs_data)) => {
+                    lhs_data == rhs_data
+                }
+                _ => false
+            }
+        }
+    }
+}
+
+impl Hash for DefModel{
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        ptr::hash(self.ax.ptr, state);
+        if let DefKind::Node(ops) = &self.kind{
+            for op in ops{
+                ptr::hash(op.ptr, state);
+            }
+        }else if let DefKind::Data(data) = &self.kind{
+            state.write(data.slice());
+        }
+        state.finish();
+    }
 }
 
 pub struct Def {
@@ -142,6 +207,10 @@ impl Def {
     }
 
     pub fn set_op( &self, idx : usize, op: &Def){
+        if let DefState::Constructed(_) = &self.state{
+            panic!("Setting of constructed Defs is not supported!");
+        }
+
         if let DefKind::Node(ops) = &self.kind{
             ops.set(idx, op.link())
         }

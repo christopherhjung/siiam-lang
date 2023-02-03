@@ -4,6 +4,8 @@ use std::cell::{Cell, RefCell, RefMut, UnsafeCell};
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
+use std::collections::hash_map::OccupiedError;
+use std::hash::Hash;
 use std::mem::MaybeUninit;
 use std::ops::{Deref, DerefMut, Index};
 use std::ptr;
@@ -19,7 +21,7 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use crate::{arr_for_each, array};
 use crate::data::Data;
-use crate::def::{DefModel, Def, DefLink, Mode, DefState, DefKind};
+use crate::def::{DefModel, Def, DefLink, Mode, DefState, DefKind, DefKey};
 use crate::def::Mode::Constructed;
 use crate::utils::{MutBox, UnsafeMut};
 
@@ -44,7 +46,7 @@ pub struct WorldImpl {
 
 #[derive(EnumIter, Hash, Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Axiom{
-    Bot, Data, Tuple, Pack, Extract, App, Pi, Lam, Var, Add,
+    Bot, Data, Tuple, Pack, Extract, App, Pi, Lam, Var, Add, Mul,
     Literal,
     TyInt
 }
@@ -85,7 +87,7 @@ impl WorldImpl {
         for axiom in Axiom::iter(){
             let mut axiom_def = Box::from(DefModel{
                 ax: root,
-                kind: DefKind::Node(Array::from(vec![link])),
+                kind: DefKind::Node(array![link]),
                 state: DefState::Pending
             });
             axiom_def.state = DefState::Constructed(AcyclicSigner::sign(&*axiom_def));
@@ -121,7 +123,22 @@ impl World {
 
 pub struct Builder{
     world: Rc<MutBox<WorldImpl>>,
-    pending : HashMap<DefLink, Box<DefModel>>,
+    pending : HashMap<DefKey, Box<DefModel>>,
+}
+
+struct DefMap {}
+impl DefMap {
+    pub fn get_or_insert(map: &mut HashMap<DefKey, Box<DefModel>>, model: Box<DefModel>) -> DefLink{
+        let link = DefLink::from(&model);
+        match map.entry(DefKey::new(link)) {
+            Occupied(entry) => {
+                DefLink::from(entry.get())
+            }
+            Vacant(entry) => {
+                DefLink::from(entry.insert(model))
+            }
+        }
+    }
 }
 
 impl Builder{
@@ -144,14 +161,12 @@ impl Builder{
         arr_for_each!(COUNT, |i: usize| {
             let old = defs[i].link;
             let new = signer.old2new(old);
-            println!("{:?}", old.state);
             Def::new(&self.world, new)
         })
     }
 
     fn insert_def(&mut self, model: Box<DefModel>) -> Def{
-        let link = DefLink::from(&model);
-        self.pending.insert(link, model);
+        let link = DefMap::get_or_insert(&mut self.pending, model);
         Def::new(&self.world, link)
     }
 }
@@ -240,7 +255,26 @@ pub trait DefFactory {
     }
 
     fn add(&mut self, lhs: &Def, rhs: &Def) -> Def {
+        /*if lhs.link.ax == self.axiom(Axiom::Add).link{
+            let [lhs, rhs] = lhs.ops();
+            println!("heheh {:?}", lhs.link)
+        }else if rhs.ax == self.axiom(Axiom::Add).link{
+            println!("lool")
+        }*/
+
+        if lhs.link == rhs.link{
+            let ty_i32 = self.ty_int(32);
+            let lit_2 = self.lit(2, &ty_i32);
+            return self.mul(lhs, &lit_2)
+        }
+
+
         let ax = self.axiom(Axiom::Add);
+        self.create_node_def(ax.link, array![lhs.link, rhs.link])
+    }
+
+    fn mul(&mut self, lhs: &Def, rhs: &Def) -> Def {
+        let ax = self.axiom(Axiom::Mul);
         self.create_node_def(ax.link, array![lhs.link, rhs.link])
     }
 
