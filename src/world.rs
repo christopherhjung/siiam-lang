@@ -20,8 +20,7 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use crate::{arr_for_each, array};
 use crate::data::Data;
-use crate::def::{DefModel, Def, DefLink, Mode, DefState, DefKind, DefKey};
-use crate::def::Mode::Constructed;
+use crate::def::{DefModel, Def, DefLink, DefState, DefKind, DefKey};
 use crate::utils::{MutBox, UnsafeMut};
 
 
@@ -127,9 +126,9 @@ pub struct Builder{
 
 struct DefMap {}
 impl DefMap {
-    pub fn get_or_insert(map: &mut HashMap<DefKey, Box<DefModel>>, model: Box<DefModel>) -> DefLink{
+    pub fn get_or_insert(map: &mut HashMap<DefKey, Box<DefModel>>, model: Box<DefModel>, nominal: bool) -> DefLink{
         let link = DefLink::from(&model);
-        match map.entry(DefKey::new(link)) {
+        match map.entry(DefKey::new(link, nominal)) {
             Occupied(entry) => {
                 DefLink::from(entry.get())
             }
@@ -164,23 +163,31 @@ impl Builder{
         })
     }
 
-    fn insert_def(&mut self, model: Box<DefModel>) -> DefLink{
-        DefMap::get_or_insert(&mut self.pending, model)
+    fn insert_def(&mut self, model: Box<DefModel>, nominal: bool) -> DefLink{
+        DefMap::get_or_insert(&mut self.pending, model, nominal)
     }
 
-    fn create_node_def(&mut self, ax: DefLink, ops: Array<DefLink>) -> Def {
-        let link = self.create_node_def_link(ax, ops);
+    fn node_def(&mut self, ax: DefLink, ops: Array<DefLink>) -> Def {
+        let link = self.node_def_link(ax, ops);
         Def::new(&self.world, link)
     }
 
-    fn create_node_def_link(&mut self, ax: DefLink, ops: Array<DefLink>) -> DefLink {
+    fn node_def_link(&mut self, ax: DefLink, ops: Array<DefLink>) -> DefLink {
+        let mut nominal = false;
+        for op in &ops{
+            if op.is_null(){
+                nominal = true;
+                break;
+            }
+        }
+
         let def = Box::from(DefModel{
             ax,
             kind: DefKind::Node(ops),
             state: DefState::Pending
         });
 
-        self.insert_def(def)
+        self.insert_def(def, nominal)
     }
 
     fn create_data_def(&mut self, data: Data) -> Def {
@@ -196,11 +203,8 @@ impl Builder{
             state: DefState::Pending
         });
 
-        self.insert_def(def)
+        self.insert_def(def, false)
     }
-
-
-
 
     fn axiom_raw(&self, ax: Axiom) -> DefLink {
         self.world.axiom(ax)
@@ -218,7 +222,7 @@ impl Builder{
         let literal_ax = self.axiom_raw(Axiom::Literal);
         let data = Data::from::<i32>(value);
         let value_def = self.create_data_def(data);
-        let literal = self.create_node_def(literal_ax, array![ty.link, value_def.link]);
+        let literal = self.node_def(literal_ax, array![ty.link, value_def.link]);
         literal
     }
 
@@ -226,38 +230,38 @@ impl Builder{
         let ty_int_ax = self.axiom_raw(Axiom::TyInt);
         let data = Data::from::<i32>(width);
         let value_def = self.create_data_def(data);
-        let literal = self.create_node_def(ty_int_ax, array![value_def.link]);
+        let literal = self.node_def(ty_int_ax, array![value_def.link]);
         literal
     }
 
     pub fn pack(&mut self, shape: &Def, body: &Def) -> Def {
         let ax = self.axiom_raw(Axiom::Pack);
-        self.create_node_def(ax, array![shape.link, body.link])
+        self.node_def(ax, array![shape.link, body.link])
     }
 
     pub fn extract(&mut self, tup: &Def, index: &Def) -> Def {
         let ax = self.axiom_raw(Axiom::Extract);
-        self.create_node_def(ax, array![tup.link, index.link])
+        self.node_def(ax, array![tup.link, index.link])
     }
 
     pub fn app(&mut self, callee: &Def, arg: &Def) -> Def {
         let ax = self.axiom_raw(Axiom::App);
-        self.create_node_def(ax, array![callee.link, arg.link])
+        self.node_def(ax, array![callee.link, arg.link])
     }
 
     pub fn pi(&mut self, domain: &Def, co_domain : &Def) -> Def {
         let ax = self.axiom_raw(Axiom::Pi);
-        self.create_node_def(ax, array![domain.link, co_domain.link])
+        self.node_def(ax, array![domain.link, co_domain.link])
     }
 
     pub fn lam(&mut self, ty : &Def) -> Def {
         let ax = self.axiom_raw(Axiom::Lam);
-        self.create_node_def(ax, array![ty.link, DefLink::null()])
+        self.node_def(ax, array![ty.link, DefLink::null()])
     }
 
     pub fn var(&mut self, lam: &Def) -> Def {
         let ax = self.axiom_raw(Axiom::Var);
-        self.create_node_def(ax, array![lam.link])
+        self.node_def(ax, array![lam.link])
     }
 
     pub fn add(&mut self, lhs: &Def, rhs: &Def) -> Def {
@@ -275,12 +279,12 @@ impl Builder{
         }
 
         let ax = self.axiom_raw(Axiom::Add);
-        self.create_node_def(ax, array![lhs.link, rhs.link])
+        self.node_def(ax, array![lhs.link, rhs.link])
     }
 
     pub fn mul(&mut self, lhs: &Def, rhs: &Def) -> Def {
         let ax = self.axiom_raw(Axiom::Mul);
-        self.create_node_def(ax, array![lhs.link, rhs.link])
+        self.node_def(ax, array![lhs.link, rhs.link])
     }
 
     pub fn set_body(&mut self, lam: &Def, body: &Def){

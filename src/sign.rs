@@ -13,7 +13,7 @@ use std::ptr::{eq, null};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 use sha2::digest::{FixedOutput, Update};
-use crate::def::{DefModel, Def, DefLink, Mode, DefState, DefKind};
+use crate::def::{DefModel, Def, DefLink, DefState, DefKind};
 use crate::utils::UnsafeMut;
 use crate::world::World;
 use crate::{Array, WorldImpl};

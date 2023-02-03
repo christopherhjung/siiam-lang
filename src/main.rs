@@ -126,21 +126,6 @@ pub fn main() {
     println!("Time elapsed in expensive_function() is: {:?}", duration);
 
     let start = Instant::now();
-
-    for a in 0 ..200*200{
-        let mut hash = Sha512::new();
-        Update::update(&mut hash,"00000000000000000000000000000000");
-        Update::update(&mut hash,"00000000000000000000000000000000");
-        Update::update(&mut hash,"00000000000000000000000000000000");
-        hash.finalize();
-    }
-
-    let duration = start.elapsed();
-    println!("Time elapsed in expensive_function() is: {:?}", duration);
-
-
-
-    let start = Instant::now();
     let duration = start.elapsed();
     println!("Time elapsed in expensive_function() is: {:?}", duration);
 }

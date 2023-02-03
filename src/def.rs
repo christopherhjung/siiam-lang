@@ -28,25 +28,32 @@ pub struct DefLink{
 
 #[derive(Copy, Clone, Eq, Debug)]
 pub struct DefKey {
-    link: DefLink
+    link: DefLink,
+    nominal : bool
 }
 
 impl DefKey {
-    pub fn new(link : DefLink) -> DefKey {
+    pub fn new(link : DefLink, nominal: bool) -> DefKey {
         DefKey {
-            link
+            link,
+            nominal
         }
     }
 }
 
 impl PartialEq for DefKey {
     fn eq(&self, other: &Self) -> bool {
-        self.link.deref() == other.link.deref()
+        if self.nominal{
+            self.link == other.link
+        }else{
+            self.link.deref() == other.link.deref()
+        }
     }
 }
 
 impl Hash for DefKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_i8(i8::from(self.nominal));
         self.link.deref().hash(state);
     }
 }
@@ -95,17 +102,14 @@ impl Deref for DefLink {
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub enum Mode {
-    Constructed, Pending
-}
-
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum DefState {
-    Constructed(Signature), Pending
+    Constructed(Signature),
+    Pending
 }
 
 pub enum DefKind {
-    Data(Data), Node(Array<DefLink>)
+    Data(Data),
+    Node(Array<DefLink>)
 }
 
 pub struct DefModel {
