@@ -26,7 +26,7 @@ use crate::visitor::Visitor;
 use crate::print::ProgramPrinter;
 use crate::array::Array;
 use crate::data::Data;
-use crate::gen::CodeGen;
+use crate::emit::HirEmitter;
 use crate::sign::Signature;
 
 mod lexer;
@@ -46,7 +46,6 @@ mod def;
 mod utils;
 mod data;
 mod emit;
-mod gen;
 
 pub fn main() {
 
@@ -79,7 +78,7 @@ pub fn main() {
     //printer.visit_module(&mut module);
     //println!("{}", printer.result);
 
-    let mut code_gen = CodeGen::new(sym_table);
+    let mut code_gen = HirEmitter::new(sym_table);
     code_gen.emit_module(&mut module);
     let fnc = code_gen.get_fn(&String::from("main"));
 

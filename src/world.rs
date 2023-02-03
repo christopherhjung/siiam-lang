@@ -224,7 +224,7 @@ impl Builder{
     }
 
     pub fn ty_unit(&mut self) -> Def {
-        self.axiom(Axiom::TyUnit)
+        self.tuple([])
     }
 
     pub fn lit(&mut self, value: u32, ty: &Def) -> Def {
@@ -267,6 +267,10 @@ impl Builder{
         let value_def = self.data_def(data);
         let literal = self.node_def(ty_int_ax, array![value_def.link]);
         literal
+    }
+
+    pub fn unit(&mut self) -> Def{
+        self.tuple([])
     }
 
     pub fn tuple<const COUNT: usize>(&mut self, elems: [&Def; COUNT]) -> Def {
