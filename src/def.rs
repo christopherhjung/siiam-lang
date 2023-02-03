@@ -28,32 +28,32 @@ pub struct DefLink{
 
 #[derive(Copy, Clone, Eq, Debug)]
 pub struct DefKey {
-    link: DefLink,
-    nominal : bool
+    link: DefLink
 }
 
 impl DefKey {
-    pub fn new(link : DefLink, nominal: bool) -> DefKey {
+    pub fn new(link : DefLink) -> DefKey {
         DefKey {
-            link,
-            nominal
+            link
         }
     }
 }
 
 impl PartialEq for DefKey {
     fn eq(&self, other: &Self) -> bool {
-        if self.nominal{
+        if self.link.state == DefState::Nominal{
             self.link == other.link
-        }else{
+        }else if self.link.state == DefState::Structural{
             self.link.deref() == other.link.deref()
+        }else{
+            panic!()
         }
     }
 }
 
 impl Hash for DefKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_i8(i8::from(self.nominal));
+        state.write_i8(i8::from(self.link.state == DefState::Nominal));
         self.link.deref().hash(state);
     }
 }
@@ -104,7 +104,8 @@ impl Deref for DefLink {
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum DefState {
     Constructed(Signature),
-    Pending
+    Structural,
+    Nominal
 }
 
 pub enum DefKind {
@@ -146,7 +147,6 @@ impl Hash for DefModel{
         }else if let DefKind::Data(data) = &self.kind{
             state.write(data.slice());
         }
-        state.finish();
     }
 }
 
@@ -174,18 +174,13 @@ impl DefModel{
 impl Def {
     pub fn world(&self) -> World{
         World{
-            impl_: self.world.clone()
+            world: self.world.clone()
         }
     }
 
     pub fn new(world: &Rc<MutBox<WorldImpl>>, link: DefLink) -> Def {
         Def { world: world.clone(), link }
     }
-
-    /*
-    pub fn op( &self, idx : usize ) -> Def {
-        Def::new(&self.world,*self.ops.get(idx))
-    }*/
 
     pub fn ops_offset<const COUNT: usize>(&self, offset : usize) -> [Def; COUNT]{
         if let DefKind::Node(ops) = &self.kind{
@@ -217,8 +212,8 @@ impl Def {
     }
 
     pub fn set_op( &self, idx : usize, op: &Def){
-        if let DefState::Constructed(_) = &self.state{
-            panic!("Setting of constructed Defs is not supported!");
+        if self.state != DefState::Nominal{
+            panic!("Setting of non nominal Defs is not supported!");
         }
 
         if let DefKind::Node(ops) = &self.kind{
