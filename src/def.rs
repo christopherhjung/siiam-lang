@@ -145,16 +145,24 @@ impl PartialEq for DefModel{
 
 impl Hash for DefModel{
     fn hash<H: Hasher>(&self, state: &mut H) {
-        if let DefState::Pending(mode) = self.state{
-            state.write_u8(mode as u8);
-        }
-        ptr::hash(self.ax.ptr, state);
-        if let DefKind::Node(ops) = &self.kind{
-            for op in ops{
-                ptr::hash(op.ptr, state);
+
+        match self.state {
+            DefState::Pending(mode) => {
+                state.write_u8(mode as u8);
             }
-        }else if let DefKind::Data(data) = &self.kind{
-            state.write(data.slice());
+            _ => panic!()
+        }
+
+        ptr::hash(self.ax.ptr, state);
+        match &self.kind {
+            DefKind::Node(ops) => {
+                for op in ops{
+                    ptr::hash(op.ptr, state);
+                }
+            }
+            DefKind::Data(data) => {
+                state.write(data.slice())
+            }
         }
     }
 }
@@ -162,6 +170,12 @@ impl Hash for DefModel{
 pub struct Def {
     pub world: Rc<MutBox<WorldImpl>>,
     pub link: DefLink
+}
+
+impl Clone for Def{
+    fn clone(&self) -> Self {
+        self.new_raw(self.link)
+    }
 }
 
 impl PartialEq for Def{
@@ -191,6 +205,19 @@ impl Def {
         Def { world: world.clone(), link }
     }
 
+    fn new_raw(&self, link: DefLink) -> Def {
+        Self::new(&self.world, link)
+    }
+
+    pub fn op(&self, idx: usize) -> Def{
+        if let DefKind::Node(ops) = &self.kind{
+            assert!(idx < ops.len());
+            self.new_raw(*ops.get(idx))
+        }else{
+            panic!()
+        }
+    }
+
     pub fn ops_offset<const COUNT: usize>(&self, offset : usize) -> [Def; COUNT]{
         if let DefKind::Node(ops) = &self.kind{
             assert_eq!(COUNT + offset, ops.len());
@@ -199,10 +226,8 @@ impl Def {
 
             unsafe {
                 for idx in offset .. ops.len(){
-                    ptr::write(
-                        ptr.add(idx - offset),
-                        Def::new(&self.world, *ops.get(idx))
-                    );
+                    ptr.add(idx - offset)
+                        .write(self.new_raw(*ops.get(idx)))
                 }
 
                 array.assume_init()

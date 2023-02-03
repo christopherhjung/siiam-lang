@@ -25,7 +25,7 @@ use crate::utils::{MutBox, UnsafeMut};
 
 
 pub struct World{
-    pub world: Rc<MutBox<WorldImpl>>
+     pub world: Rc<MutBox<WorldImpl>>
 }
 
 impl Clone for World{
@@ -46,7 +46,8 @@ pub struct WorldImpl {
 pub enum Axiom{
     Bot, Data, Tuple, Pack, Extract, App, Pi, Lam, Var, Add, Mul,
     Literal,
-    TyInt
+    TyIdx, TyInt, TyReal,
+    Slot, Alloc, Store, Load, Free, Ptr, Mem
 }
 
 impl WorldImpl {
@@ -222,16 +223,42 @@ impl Builder{
         self.axiom(Axiom::Bot)
     }
 
-    pub fn lit(&mut self, value: i32, ty: &Def) -> Def {
+    pub fn lit(&mut self, value: u32, ty: &Def) -> Def {
         let literal_ax = self.axiom_raw(Axiom::Literal);
-        let data = Data::from::<i32>(value);
+        let data = Data::from::<u32>(value);
         let value_def = self.data_def(data);
         let literal = self.node_def(literal_ax, array![ty.link, value_def.link]);
         literal
     }
 
-    pub fn ty_int(&mut self, width: i32) -> Def {
+    pub fn lit_idx(&mut self, arity: u32, idx: u32 ) -> Def{
+        let arity = self.ty_idx(arity);
+        self.lit(idx, &arity)
+    }
+
+    pub fn ty_int(&mut self, width: u32) -> Def {
         let ty_int_ax = self.axiom_raw(Axiom::TyInt);
+        let data = Data::from::<u32>(width);
+        let value_def = self.data_def(data);
+        let literal = self.node_def(ty_int_ax, array![value_def.link]);
+        literal
+    }
+
+    pub fn lit_int(&mut self, width: u32, idx: u32 ) -> Def{
+        let arity = self.ty_int(width);
+        self.lit(idx, &arity)
+    }
+
+    pub fn ty_idx(&mut self, arity: u32) -> Def {
+        let ty_int_ax = self.axiom_raw(Axiom::TyIdx);
+        let data = Data::from::<u32>(arity);
+        let value_def = self.data_def(data);
+        let literal = self.node_def(ty_int_ax, array![value_def.link]);
+        literal
+    }
+
+    pub fn ty_real(&mut self, width: i32) -> Def {
+        let ty_int_ax = self.axiom_raw(Axiom::TyReal);
         let data = Data::from::<i32>(width);
         let value_def = self.data_def(data);
         let literal = self.node_def(ty_int_ax, array![value_def.link]);
@@ -268,6 +295,12 @@ impl Builder{
 
     fn app_raw(&mut self, callee: DefLink, arg: DefLink) -> Def {
         let ax = self.axiom_raw(Axiom::App);
+        self.node_def(ax, array![callee, arg])
+    }
+
+    fn app_raw_arr(&mut self, callee: DefLink, arg: Array<DefLink>) -> Def {
+        let ax = self.axiom_raw(Axiom::App);
+        let arg = self.tuple_raw(arg);
         self.node_def(ax, array![callee, arg])
     }
 
@@ -308,6 +341,39 @@ impl Builder{
     pub fn mul(&mut self, lhs: &Def, rhs: &Def) -> Def {
         let ax = self.axiom_raw(Axiom::Mul);
         self.node_def(ax, array![lhs.link, rhs.link])
+    }
+
+    pub fn slot(&mut self, ty: &Def, mem: &Def) -> Def {
+        let ax = self.axiom_raw(Axiom::Slot);
+        let curry = self.node_def_link(ax, array![ty.link]);
+        self.app_raw_arr(curry, array![mem.link])
+    }
+
+    pub fn alloc(&mut self, ty: &Def, mem: &Def) -> Def {
+        let ax = self.axiom_raw(Axiom::Alloc);
+        let curry = self.node_def_link(ax, array![ty.link]);
+        self.app_raw_arr(curry, array![mem.link])
+    }
+
+    pub fn load(&mut self, mem: &Def, ptr: &Def) -> Def {
+        let ax = self.axiom_raw(Axiom::Load);
+        let ty = self.bot();
+        let curry = self.node_def_link(ax, array![ty.link]);
+        self.app_raw_arr(curry, array![mem.link, ptr.link])
+    }
+
+    pub fn store(&mut self, mem: &Def, ptr: &Def, val: &Def) -> Def {
+        let ax = self.axiom_raw(Axiom::Store);
+        let ty = self.bot();
+        let curry = self.node_def_link(ax, array![ty.link]);
+        self.app_raw_arr(curry, array![mem.link, ptr.link, val.link])
+    }
+
+    pub fn free(&mut self, mem: &Def, ptr: &Def) -> Def {
+        let ax = self.axiom_raw(Axiom::Load);
+        let ty = self.bot();
+        let curry = self.node_def_link(ax, array![ty.link]);
+        self.app_raw_arr(curry, array![mem.link, ptr.link])
     }
 
     pub fn set_body(&mut self, lam: &Def, body: &Def){

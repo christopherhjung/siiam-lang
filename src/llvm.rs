@@ -22,7 +22,7 @@ pub struct Function{
     blocks: HashMap<String, Rc<RefCell<Block>>>
 }
 
-pub struct CodeGen {
+pub struct LLVMCodeGen {
     fns: HashMap<String, Box<Function>>,
     //expr2value: HashMap<*const Expr, String>,
     decl2ptr: HashMap<*const Decl, String>,
@@ -32,7 +32,7 @@ pub struct CodeGen {
     current_index : usize
 }
 
-impl CodeGen {
+impl LLVMCodeGen {
     fn name(&self, sym: Sym) -> String{
         let sym_table = self.sym_table.borrow();
         let name = SymTable::get(&sym_table, sym);
@@ -95,8 +95,8 @@ impl CodeGen {
         val
     }
 
-    pub fn new(sym_table: Rc<RefCell<SymTable>>) -> CodeGen {
-        CodeGen {
+    pub fn new(sym_table: Rc<RefCell<SymTable>>) -> LLVMCodeGen {
+        LLVMCodeGen {
             fns : HashMap::new(),
             //expr2value: HashMap::new(),
             decl2ptr: HashMap::new(),
@@ -129,7 +129,7 @@ impl CodeGen {
     }
 }
 
-impl Visitor for CodeGen {
+impl Visitor for LLVMCodeGen {
     fn visit_decl(&mut self, decl: &mut Decl) {
         let name = self.name(decl.ident.sym);
         match &mut decl.kind {

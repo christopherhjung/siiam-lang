@@ -20,7 +20,6 @@ use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::check::{TypeChecker, TyTable};
 use crate::world::{Axiom, Builder, DepCheck, World, WorldImpl};
-use crate::llvm::CodeGen;
 use crate::source::Source;
 use crate::sym::*;
 use crate::visitor::Visitor;
@@ -28,7 +27,6 @@ use crate::print::ProgramPrinter;
 use crate::array::Array;
 use crate::data::Data;
 use crate::sign::Signature;
-
 
 mod lexer;
 mod source;
@@ -40,7 +38,6 @@ mod visitor;
 mod check;
 mod token;
 mod print;
-mod llvm;
 mod world;
 mod sign;
 mod array;
@@ -48,6 +45,7 @@ mod def;
 mod utils;
 mod data;
 mod emit;
+mod gen;
 
 pub fn main() {
 
