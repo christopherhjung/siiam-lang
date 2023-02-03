@@ -26,6 +26,7 @@ use crate::visitor::Visitor;
 use crate::print::ProgramPrinter;
 use crate::array::Array;
 use crate::data::Data;
+use crate::gen::CodeGen;
 use crate::sign::Signature;
 
 mod lexer;
@@ -77,11 +78,15 @@ pub fn main() {
     //let mut printer = ProgramPrinter::new(sym_table.clone());
     //printer.visit_module(&mut module);
     //println!("{}", printer.result);
-/*
-    let mut code_gen = CodeGen::new(sym_table);
-    code_gen.visit_module(&mut module);
-    code_gen.emit();*/
 
+    let mut code_gen = CodeGen::new(sym_table);
+    code_gen.emit_module(&mut module);
+    let fnc = code_gen.get_fn(&String::from("main"));
+
+    println!("-----");
+    println!("{:?}", fnc.sign());
+    println!("-----");
+/*
     let start = Instant::now();
     let mut world = World::new();
 /*
@@ -126,7 +131,7 @@ pub fn main() {
 
     let start = Instant::now();
     let duration = start.elapsed();
-    println!("Time elapsed in expensive_function() is: {:?}", duration);
+    println!("Time elapsed in expensive_function() is: {:?}", duration);*/
 }
 
 

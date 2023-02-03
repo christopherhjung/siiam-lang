@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
-use crate::{Builder, Decl, Module, Sym, SymTable, Visitor, World};
+use crate::{Array, Builder, Decl, Module, Sym, SymTable, Visitor, World};
 use crate::ast::{DeclKind, Expr, ExprKind, Literal, Op, PrimTy, Stmt};
 use crate::check::{Ty, TyRef};
 use crate::def::Def;
@@ -22,6 +22,11 @@ pub struct CodeGen {
 }
 
 impl CodeGen {
+    pub fn get_fn(&mut self, name : &String) -> Def{
+        let def = self.fns.get(name).unwrap();
+        self.b.construct_def(def)
+    }
+
     fn name(&self, sym: Sym) -> String{
         let sym_table = self.sym_table.borrow();
         let name = SymTable::get(&sym_table, sym);
@@ -34,12 +39,19 @@ impl CodeGen {
             }
         }
     */
-    pub fn map_decl(&mut self, decl: &Decl, val: Def){
+    fn map_decl(&mut self, decl: &Decl, val: Def){
         self.decl2val.insert(decl as *const Decl, val);
     }
 
-    pub fn emit_ty(&mut self, ty_ref: TyRef ) -> Def{
-        match *ty_ref {
+    fn emit_opt_ty(&mut self, ty_ref: Option<TyRef> ) -> Def{
+        match ty_ref {
+            Some(ty) => self.emit_ty(ty),
+            None => self.b.ty_unit()
+        }
+    }
+
+    fn emit_ty(&mut self, ty_ref: TyRef ) -> Def{
+        match &*ty_ref {
             Ty::Prim(prim_ty) => {
                 match prim_ty {
                     PrimTy::I32 => self.b.ty_int(32),
@@ -48,8 +60,26 @@ impl CodeGen {
                     PrimTy::F64 => self.b.ty_real(64),
                     _ => panic!()
                 }
-            },
-            _ => panic!()
+            }
+            Ty::Fn(fn_ty) => {
+                let arr = Array::new(fn_ty.params.len());
+                for (idx, param) in fn_ty.params.iter().enumerate(){
+                    let ty = self.emit_ty(*param);
+                    arr.set(idx, ty.link);
+                }
+
+                let arg_ty = self.b.sigma_arr(arr);
+                let ret_ty = self.emit_opt_ty(fn_ty.ret_ty);
+
+                self.b.pi(&arg_ty, &ret_ty)
+            }
+            Ty::Struct(struct_ty) => {
+                self.b.bot()
+            }
+            _ => {
+                println!("{:?}", *ty_ref);
+                panic!()
+            }
         }
     }
 
@@ -85,19 +115,20 @@ impl CodeGen {
         }
     }
 
-    fn emit_module(&mut self, module: &Module){
+    pub fn emit_module(&mut self, module: &Module){
         for mut item in &module.items{
-            self.emit_decl(item)
+            self.emit_decl(item);
         }
     }
 
-    fn emit_decl(&mut self, decl: &Decl) {
+    fn emit_decl(&mut self, decl: &Decl) -> Def {
         let name = self.name(decl.ident.sym);
         match &decl.kind {
             DeclKind::FnDecl(fn_decl) => {
                 let fnc_ty = self.emit_ty(decl.ty.unwrap());
                 
                 let fnc = self.b.lam(&fnc_ty);
+                let res = fnc.clone();
                 let var = self.b.var(&fnc);
 
                 let mut idx = 0;
@@ -111,9 +142,11 @@ impl CodeGen {
                 }
 
                 self.fns.insert(name, fnc);
-                self.remit_expr(&fn_decl.body);
+                let body = self.remit_expr(&fn_decl.body);
+                self.b.set_body(&res, &body);
+                res
             },
-            _ => {}
+            _ => self.b.bot()
         }
     }
 
@@ -124,8 +157,6 @@ impl CodeGen {
                 self.remit_expr(&expr_stmt.expr)
             },
             Stmt::Let(let_stmt) =>{
-                self.remit_expr( let_stmt.init.as_ref().unwrap());
-
                 let ty = self.emit_ty(let_stmt.local_decl.ty.unwrap());
 
                 if let Some(init) = &let_stmt.init{

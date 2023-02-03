@@ -44,9 +44,9 @@ pub struct WorldImpl {
 
 #[derive(EnumIter, Hash, Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Axiom{
-    Bot, Data, Tuple, Pack, Extract, App, Pi, Lam, Var, Add, Mul,
+    Bot, Data, Tuple, Sigma, Pack, Extract, App, Pi, Lam, Var, Add, Mul,
     Literal,
-    TyIdx, TyInt, TyReal,
+    TyIdx, TyInt, TyReal, TyUnit,
     Slot, Alloc, Store, Load, Free, Ptr, Mem
 }
 
@@ -223,6 +223,10 @@ impl Builder{
         self.axiom(Axiom::Bot)
     }
 
+    pub fn ty_unit(&mut self) -> Def {
+        self.axiom(Axiom::TyUnit)
+    }
+
     pub fn lit(&mut self, value: u32, ty: &Def) -> Def {
         let literal_ax = self.axiom_raw(Axiom::Literal);
         let data = Data::from::<u32>(value);
@@ -265,17 +269,45 @@ impl Builder{
         literal
     }
 
-    pub fn tuple<const COUNT: usize>(&mut self, elem: [&Def; COUNT]) -> Def {
+    pub fn tuple<const COUNT: usize>(&mut self, elems: [&Def; COUNT]) -> Def {
         let elem_links = Array::new(COUNT);
         for idx in 0 .. COUNT{
-            elem_links.set(idx, elem[idx].link)
+            elem_links.set(idx, elems[idx].link)
         }
-        let raw = self.tuple_raw(elem_links);
+        let raw = self.tuple_arr_raw(elem_links);
         Def::new(&self.world, raw)
     }
 
-    fn tuple_raw(&mut self, elem: Array<DefLink>) -> DefLink {
+    pub fn tuple_arr(&mut self, elems: Array<Def>) -> Def {
+        let elem_links = Array::new(elems.len());
+        for idx in 0 .. elems.len(){
+            elem_links.set(idx, elems.get(idx).link)
+        }
+        let raw = self.tuple_arr_raw(elem_links);
+        Def::new(&self.world, raw)
+    }
+
+    fn tuple_arr_raw(&mut self, elem: Array<DefLink>) -> DefLink {
         let ax = self.axiom_raw(Axiom::Tuple);
+        self.node_def_link(ax,elem)
+    }
+
+    pub fn sigma<const COUNT: usize>(&mut self, elems: [&Def; COUNT]) -> Def {
+        let elem_links = Array::new(COUNT);
+        for idx in 0 .. COUNT{
+            elem_links.set(idx, elems[idx].link)
+        }
+        let raw = self.sigma_arr_raw(elem_links);
+        Def::new(&self.world, raw)
+    }
+
+    pub fn sigma_arr(&mut self, elems: Array<DefLink>) -> Def {
+        let raw = self.sigma_arr_raw(elems);
+        Def::new(&self.world, raw)
+    }
+
+    pub fn sigma_arr_raw(&mut self, elem: Array<DefLink>) -> DefLink {
+        let ax = self.axiom_raw(Axiom::Sigma);
         self.node_def_link(ax,elem)
     }
 
@@ -300,7 +332,7 @@ impl Builder{
 
     fn app_raw_arr(&mut self, callee: DefLink, arg: Array<DefLink>) -> Def {
         let ax = self.axiom_raw(Axiom::App);
-        let arg = self.tuple_raw(arg);
+        let arg = self.tuple_arr_raw(arg);
         self.node_def(ax, array![callee, arg])
     }
 
@@ -334,7 +366,7 @@ impl Builder{
         }
 
         let ax = self.axiom_raw(Axiom::Add);
-        let arg = self.tuple_raw(array![lhs.link, rhs.link]);
+        let arg = self.tuple_arr_raw(array![lhs.link, rhs.link]);
         self.app_raw(ax, arg)
     }
 
