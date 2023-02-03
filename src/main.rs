@@ -19,7 +19,7 @@ use crate::bind::NameBinder;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::check::{TypeChecker, TyTable};
-use crate::world::{Axiom, Builder, DefFactory, DepCheck, World, WorldImpl};
+use crate::world::{Axiom, Builder, DepCheck, World, WorldImpl};
 use crate::llvm::CodeGen;
 use crate::source::Source;
 use crate::sym::*;
@@ -102,6 +102,7 @@ pub fn main() {
 
         let i32_ty = builder.ty_int(32);
         let one = builder.lit(1, &i32_ty);
+        let one2 = builder.lit(1, &i32_ty);
 
         let pi = builder.pi(&i32_ty, &i32_ty);
         let cn = builder.lam(&pi);
@@ -109,7 +110,7 @@ pub fn main() {
         let mut test2 = Box::new(builder.var(&cn));
 
         for _ in 0 .. 300{
-            test2 = Box::new(builder.add(&test2, &one));
+            test2 = Box::new(builder.add(&one, &one2));
         }
 
         builder.set_body(&cn, &test2);

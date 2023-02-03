@@ -171,7 +171,7 @@ impl Builder{
     }
 }
 
-impl DefFactory for Builder{
+impl Builder{
     fn create_node_def(&mut self, ax: DefLink, ops: Array<DefLink>) -> Def {
         let def = Box::from(DefModel{
             ax,
@@ -193,93 +193,89 @@ impl DefFactory for Builder{
         self.insert_def(def)
     }
 
-    fn axiom(&mut self, ax: Axiom) -> Def {
-        Def::new(&self.world, self.world.axiom(ax))
+    fn axiom_raw(&self, ax: Axiom) -> DefLink {
+        self.world.axiom(ax)
     }
-}
 
+    pub fn axiom(&mut self, ax: Axiom) -> Def {
+        Def::new(&self.world, self.axiom_raw(ax))
+    }
 
-pub trait DefFactory {
-    fn create_node_def(&mut self, ax: DefLink, ops: Array<DefLink>) -> Def;
-    fn create_data_def(&mut self, data: Data) -> Def;
-    fn axiom(&mut self, ax : Axiom) -> Def;
-
-    fn bot(&mut self) -> Def {
+    pub fn bot(&mut self) -> Def {
         self.axiom(Axiom::Bot)
     }
 
-    fn lit(&mut self, value: i32, ty: &Def) -> Def {
-        let literal_ax = self.axiom(Axiom::Literal);
+    pub fn lit(&mut self, value: i32, ty: &Def) -> Def {
+        let literal_ax = self.axiom_raw(Axiom::Literal);
         let data = Data::from::<i32>(value);
         let value_def = self.create_data_def(data);
-        let literal = self.create_node_def(literal_ax.link, array![ty.link, value_def.link]);
+        let literal = self.create_node_def(literal_ax, array![ty.link, value_def.link]);
         literal
     }
 
-    fn ty_int(&mut self, width: i32) -> Def {
-        let ty_int_ax = self.axiom(Axiom::TyInt);
+    pub fn ty_int(&mut self, width: i32) -> Def {
+        let ty_int_ax = self.axiom_raw(Axiom::TyInt);
         let data = Data::from::<i32>(width);
         let value_def = self.create_data_def(data);
-        let literal = self.create_node_def(ty_int_ax.link, array![value_def.link]);
+        let literal = self.create_node_def(ty_int_ax, array![value_def.link]);
         literal
     }
 
-    fn pack(&mut self, shape: &Def, body: &Def) -> Def {
-        let ax = self.axiom(Axiom::Pack);
-        self.create_node_def(ax.link, array![shape.link, body.link])
+    pub fn pack(&mut self, shape: &Def, body: &Def) -> Def {
+        let ax = self.axiom_raw(Axiom::Pack);
+        self.create_node_def(ax, array![shape.link, body.link])
     }
 
-    fn extract(&mut self, tup: &Def, index: &Def) -> Def {
-        let ax = self.axiom(Axiom::Extract);
-        self.create_node_def(ax.link, array![tup.link, index.link])
+    pub fn extract(&mut self, tup: &Def, index: &Def) -> Def {
+        let ax = self.axiom_raw(Axiom::Extract);
+        self.create_node_def(ax, array![tup.link, index.link])
     }
 
-    fn app(&mut self, callee: &Def, arg: &Def) -> Def {
-        let ax = self.axiom(Axiom::App);
-        self.create_node_def(ax.link, array![callee.link, arg.link])
+    pub fn app(&mut self, callee: &Def, arg: &Def) -> Def {
+        let ax = self.axiom_raw(Axiom::App);
+        self.create_node_def(ax, array![callee.link, arg.link])
     }
 
-    fn pi(&mut self, domain: &Def, co_domain : &Def) -> Def {
-        let ax = self.axiom(Axiom::Pi);
-        self.create_node_def(ax.link, array![domain.link, co_domain.link])
+    pub fn pi(&mut self, domain: &Def, co_domain : &Def) -> Def {
+        let ax = self.axiom_raw(Axiom::Pi);
+        self.create_node_def(ax, array![domain.link, co_domain.link])
     }
 
-    fn lam(&mut self, ty : &Def) -> Def {
-        let ax = self.axiom(Axiom::Lam);
-        self.create_node_def(ax.link, array![ty.link, DefLink::null()])
+    pub fn lam(&mut self, ty : &Def) -> Def {
+        let ax = self.axiom_raw(Axiom::Lam);
+        self.create_node_def(ax, array![ty.link, DefLink::null()])
     }
 
-    fn var(&mut self, lam: &Def) -> Def {
-        let ax = self.axiom(Axiom::Var);
-        self.create_node_def(ax.link, array![lam.link])
+    pub fn var(&mut self, lam: &Def) -> Def {
+        let ax = self.axiom_raw(Axiom::Var);
+        self.create_node_def(ax, array![lam.link])
     }
 
-    fn add(&mut self, lhs: &Def, rhs: &Def) -> Def {
-        /*if lhs.link.ax == self.axiom(Axiom::Add).link{
+    pub fn add(&mut self, lhs: &Def, rhs: &Def) -> Def {
+        if lhs.link.ax == self.axiom_raw(Axiom::Add){
             let [lhs, rhs] = lhs.ops();
             println!("heheh {:?}", lhs.link)
-        }else if rhs.ax == self.axiom(Axiom::Add).link{
+        }else if rhs.ax == self.axiom_raw(Axiom::Add){
             println!("lool")
-        }*/
+        }
 
-        if lhs.link == rhs.link{
+        if lhs == rhs{
             let ty_i32 = self.ty_int(32);
             let lit_2 = self.lit(2, &ty_i32);
             return self.mul(lhs, &lit_2)
         }
 
-
-        let ax = self.axiom(Axiom::Add);
-        self.create_node_def(ax.link, array![lhs.link, rhs.link])
+        let ax = self.axiom_raw(Axiom::Add);
+        self.create_node_def(ax, array![lhs.link, rhs.link])
     }
 
-    fn mul(&mut self, lhs: &Def, rhs: &Def) -> Def {
-        let ax = self.axiom(Axiom::Mul);
-        self.create_node_def(ax.link, array![lhs.link, rhs.link])
+    pub fn mul(&mut self, lhs: &Def, rhs: &Def) -> Def {
+        let ax = self.axiom_raw(Axiom::Mul);
+        self.create_node_def(ax, array![lhs.link, rhs.link])
     }
 
-    fn set_body(&mut self, lam: &Def, body: &Def){
-        assert_eq!(lam.link.ax, self.axiom(Axiom::Lam).link);
+    pub fn set_body(&mut self, lam: &Def, body: &Def){
+        assert_eq!(lam.link.ax, self.axiom_raw(Axiom::Lam));
         lam.set_op(1, body);
     }
 }

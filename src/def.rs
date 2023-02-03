@@ -151,6 +151,12 @@ pub struct Def {
     pub link: DefLink
 }
 
+impl PartialEq for Def{
+    fn eq(&self, other: &Self) -> bool {
+        self.link == other.link
+    }
+}
+
 impl DefModel{
     pub fn is_root(&self) -> bool{
         if let DefState::Constructed(sign) = &self.state{
