@@ -41,10 +41,12 @@ impl DefKey {
 
 impl PartialEq for DefKey {
     fn eq(&self, other: &Self) -> bool {
-        if self.link.state == DefState::Nominal{
-            self.link == other.link
-        }else if self.link.state == DefState::Structural{
-            self.link.deref() == other.link.deref()
+        if let DefState::Pending(mode) = self.link.state{
+            if mode == PendingMode::Nominal{
+                self.link == other.link
+            }else{
+                self.link.deref() == other.link.deref()
+            }
         }else{
             panic!()
         }
@@ -53,7 +55,6 @@ impl PartialEq for DefKey {
 
 impl Hash for DefKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_i8(i8::from(self.link.state == DefState::Nominal));
         self.link.deref().hash(state);
     }
 }
@@ -102,10 +103,15 @@ impl Deref for DefLink {
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub enum DefState {
-    Constructed(Signature),
+pub enum PendingMode{
     Structural,
     Nominal
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub enum DefState {
+    Constructed(Signature),
+    Pending(PendingMode)
 }
 
 pub enum DefKind {
@@ -139,6 +145,9 @@ impl PartialEq for DefModel{
 
 impl Hash for DefModel{
     fn hash<H: Hasher>(&self, state: &mut H) {
+        if let DefState::Pending(mode) = self.state{
+            state.write_u8(mode as u8);
+        }
         ptr::hash(self.ax.ptr, state);
         if let DefKind::Node(ops) = &self.kind{
             for op in ops{
@@ -212,7 +221,7 @@ impl Def {
     }
 
     pub fn set_op( &self, idx : usize, op: &Def){
-        if self.state != DefState::Nominal{
+        if self.state != DefState::Pending(PendingMode::Nominal){
             panic!("Setting of non nominal Defs is not supported!");
         }
 

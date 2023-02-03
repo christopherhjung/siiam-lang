@@ -20,7 +20,7 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use crate::{arr_for_each, array};
 use crate::data::Data;
-use crate::def::{DefModel, Def, DefLink, DefState, DefKind, DefKey};
+use crate::def::{DefModel, Def, DefLink, DefState, DefKind, DefKey, PendingMode};
 use crate::utils::{MutBox, UnsafeMut};
 
 
@@ -86,7 +86,7 @@ impl WorldImpl {
             let mut axiom_def = Box::from(DefModel{
                 ax: root,
                 kind: DefKind::Node(array![link]),
-                state: DefState::Structural
+                state: DefState::Pending(PendingMode::Structural)
             });
             axiom_def.state = DefState::Constructed(AcyclicSigner::sign(&*axiom_def));
             link = world.insert_def(axiom_def);
@@ -177,10 +177,10 @@ impl Builder{
     }
 
     fn node_def_link(&mut self, ax: DefLink, ops: Array<DefLink>) -> DefLink {
-        let mut state = DefState::Structural;
+        let mut state = PendingMode::Structural;
         for op in &ops{
             if op.is_null(){
-                state = DefState::Nominal;
+                state = PendingMode::Nominal;
                 break;
             }
         }
@@ -188,7 +188,7 @@ impl Builder{
         let def = Box::from(DefModel{
             ax,
             kind: DefKind::Node(ops),
-            state
+            state: DefState::Pending(state)
         });
 
         self.insert_def(def)
@@ -204,7 +204,7 @@ impl Builder{
         let def = Box::from(DefModel{
             ax,
             kind: DefKind::Data(data),
-            state: DefState::Structural
+            state: DefState::Pending(PendingMode::Structural)
         });
 
         self.insert_def(def)
