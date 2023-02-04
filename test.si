@@ -1,14 +1,11 @@
 
 struct Point{
-    x : f64
+    x : i32
     y : Point
 }
 
 fn main(h : i64) : i64{
-    let z = 9
-    let a = (z - z)
-    let c = a - a
-    c
+    h * 2
 }
 
 /*

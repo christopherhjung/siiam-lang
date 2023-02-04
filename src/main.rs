@@ -62,7 +62,7 @@ pub fn main() {
     let duration_parse = start_parse.elapsed();
     println!("Parser: {:?}", duration_parse);
 
-    println!("{:#?}", module);
+    //println!("{:#?}", module);
 
     let start_parse = Instant::now();
     let mut binder = NameBinder::new();
@@ -83,17 +83,14 @@ pub fn main() {
     println!("{}", printer.result);
 
     let start_emit = Instant::now();
-    let world = World::new();
-    let mut code_gen = HirEmitter::new(sym_table, world);
+    let mut world = World::new();
+    let mut code_gen = HirEmitter::new(sym_table, world.clone());
     code_gen.emit_module(&mut module);
-    let fnc = code_gen.get_fn(&String::from("main"));
+
+    code_gen.list();
+
     let duration_parse = start_emit.elapsed();
     println!("Emitter: {:?}", duration_parse);
-
-    println!("-----");
-    println!("{:?}", fnc.sign());
-    println!("-----");
-
 
 
 /*

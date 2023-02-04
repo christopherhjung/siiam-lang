@@ -11,11 +11,10 @@ use crate::def::Def;
 
 pub struct HirEmitter {
     fns: HashMap<String, Def>,
-    //expr2value: HashMap<*const Expr, String>,
-    //decl2ptr: HashMap<*const Decl, Def>,
-    decl2val: HashMap<*const Decl, Def>,
+    structs: HashMap<String, Def>,
+    struct2def: HashMap<TyRef, Def>,
+    decl2def: HashMap<*const Decl, Def>,
     sym_table : Rc<RefCell<SymTable>>,
-    current_index : usize,
     world : World,
     b : Builder,
     curr_mem: Option<Def>,
@@ -35,7 +34,7 @@ impl HirEmitter {
     }
 
     fn map_decl(&mut self, decl: &Decl, val: Def){
-        self.decl2val.insert(decl as *const Decl, val);
+        self.decl2def.insert(decl as *const Decl, val);
     }
 
     fn emit_opt_ty(&mut self, ty_ref: Option<TyRef> ) -> Def{
@@ -69,7 +68,26 @@ impl HirEmitter {
                 self.b.pi(&arg_ty, &ret_ty)
             }
             Ty::Struct(struct_ty) => {
-                self.b.bot()
+                if let Some(def) = self.struct2def.get(&ty_ref){
+                    def.clone()
+                }else{
+                    let member_tys = Array::new(struct_ty.members.len());
+                    let placeholder = self.b.placeholder();
+                    for idx in 0 .. member_tys.len(){
+                        member_tys.set(idx, placeholder.link);
+                    }
+
+                    let sigma = self.b.sigma_arr(member_tys);
+                    self.struct2def.insert(ty_ref, sigma.clone());
+
+                    for (idx, member_ty) in struct_ty.members.iter().enumerate(){
+                        let mem_ty_def = self.emit_ty(*member_ty);
+                        sigma.set_op(idx, &mem_ty_def);
+                    }
+
+                    self.structs.insert(self.name(struct_ty.name), sigma.clone());
+                    sigma
+                }
             }
             _ => {
                 println!("{:?}", *ty_ref);
@@ -83,9 +101,9 @@ impl HirEmitter {
         let builder = world.builder();
         HirEmitter {
             fns : HashMap::new(),
-            //expr2value: HashMap::new(),
-            decl2val: HashMap::new(),
-            current_index: 0,
+            structs : HashMap::new(),
+            decl2def: HashMap::new(),
+            struct2def: HashMap::new(),
             sym_table,
             world,
             b: builder,
@@ -141,6 +159,13 @@ impl HirEmitter {
                 self.b.set_body(&res, &body);
                 res
             }
+            DeclKind::StructDecl(struct_decl) => {
+                if let Some(struct_ty) = decl.ty{
+                    self.emit_ty(struct_ty)
+                }else{
+                    self.b.bot()
+                }
+            }
             _ => self.b.bot()
         }
     }
@@ -174,7 +199,7 @@ impl HirEmitter {
                 }
             },
             ExprKind::Infix(infix_expr) => {
-                let ty = self.emit_ty(expr.ty.unwrap());
+                //let ty = self.emit_ty(expr.ty.unwrap());
                 let lhs_val = self.remit_expr(&infix_expr.lhs);
                 let rhs_val = self.remit_expr(&infix_expr.rhs);
 
@@ -188,8 +213,8 @@ impl HirEmitter {
             },
             ExprKind::Ident(ident_expr) => {
                 let decl =  unsafe{&*ident_expr.ident_use.decl.unwrap()};
-                let ty = self.emit_ty(decl.ty.unwrap());
-                let val = self.decl2val.get(&ident_expr.ident_use.decl.unwrap()).unwrap();
+                //let ty = self.emit_ty(decl.ty.unwrap());
+                let val = self.decl2def.get(&ident_expr.ident_use.decl.unwrap()).unwrap();
                 val.clone()
             },
             ExprKind::Block(block_expr) => {
@@ -204,5 +229,20 @@ impl HirEmitter {
                 panic!()
             }
         }
+    }
+
+    pub fn list(&mut self){
+        println!("-------------------------------------------------");
+        println!("Structs:");
+        for (name, def) in &self.structs{
+            let new = self.b.construct_def(&def);
+            println!("    {} {:?}", name, new.sign())
+        }
+        println!("Functions:");
+        for (name, def) in &self.fns{
+            let new = self.b.construct_def(&def);
+            println!("    {} {:?}", name, new.sign())
+        }
+        println!("-------------------------------------------------");
     }
 }

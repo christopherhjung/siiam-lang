@@ -14,19 +14,9 @@ use crate::ast::{ASTTy, Block, DeclKind, Expr, ExprKind, IdentExpr, Literal, Loc
 use crate::check::Ty::Prim;
 use crate::visitor::Visitor;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Hash, PartialEq, Eq)]
 pub struct TyRef{
     ptr : *const Ty
-}
-
-impl PartialEq<Self> for TyRef {
-    fn eq(&self, other: &Self) -> bool {
-        self.ptr == other.ptr
-    }
-}
-
-impl Eq for TyRef {
-
 }
 
 impl Debug for TyRef{
@@ -60,7 +50,7 @@ impl TyRef {
 #[derive(Debug)]
 pub struct StructTy {
     pub name: Sym,
-    members : Vec<TyRef>
+    pub members : Vec<TyRef>
 }
 
 #[derive(Debug)]

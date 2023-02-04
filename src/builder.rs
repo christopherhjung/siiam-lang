@@ -53,10 +53,6 @@ impl Builder{
         })
     }
 
-    fn placeholder(&self) -> Def{
-        Def::new(&self.world, DefLink::null())
-    }
-
     fn insert_def(&mut self, model: Box<DefModel>) -> DefLink{
         DefMap::get_or_insert(&mut self.pending, model)
     }
@@ -102,6 +98,10 @@ impl Builder{
 
     fn axiom_raw(&self, ax: Axiom) -> DefLink {
         self.world.axiom(ax)
+    }
+
+    pub fn placeholder(&self) -> Def{
+        Def::new(&self.world, DefLink::null())
     }
 
     pub fn axiom(&mut self, ax: Axiom) -> Def {
@@ -264,9 +264,13 @@ impl Builder{
     }
 
     pub fn sub(&mut self, lhs: &Def, rhs: &Def) -> Def {
-        let ax = self.axiom_raw(Axiom::Sub);
-        let arg = self.tuple_arr_raw(array![lhs.link, rhs.link]);
-        self.app_raw(ax, arg)
+        if lhs == rhs{
+            self.lit_int(32, 0)
+        }else {
+            let ax = self.axiom_raw(Axiom::Sub);
+            let arg = self.tuple_arr_raw(array![lhs.link, rhs.link]);
+            self.app_raw(ax, arg)
+        }
     }
 
     pub fn mul(&mut self, lhs: &Def, rhs: &Def) -> Def {
