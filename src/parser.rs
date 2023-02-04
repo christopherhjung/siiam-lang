@@ -325,7 +325,13 @@ impl Parser {
         match op {
             Op::Inc |
             Op::Dec => Box::new(Expr::new(ExprKind::Postfix(PostfixExpr { expr: lhs, op }))),
-            Op::LeftParen => Box::new(Expr::new(ExprKind::FnCall(FnCallExpr{ callee: lhs, args: self.parse_expr_list(TokenKind::Comma, TokenKind::RParen) }))),
+            Op::LeftParen => Box::new(Expr::new(ExprKind::FnCall(FnCallExpr{
+                callee: lhs,
+                args: self.parse_expr_list(TokenKind::Comma, TokenKind::RParen)
+            }))),
+            Op::LeftBracket => {
+                todo!("constructor")
+            }
             Op::Dot => Box::new(Expr::new(ExprKind::Field(FieldExpr{
                 target: lhs,
                 identifier: Box::new(IdentUse::new(self.parse_ident()) ),
@@ -354,7 +360,7 @@ impl Parser {
 
                     lhs = self.parse_infix_expr(lhs, op);
                 } else if op.is_postfix() {
-                    if prec > Prec::Unary {
+                    if prec == Prec::Top {
                         break;
                     }
 

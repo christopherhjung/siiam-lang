@@ -19,7 +19,7 @@ use crate::bind::NameBinder;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::check::{TypeChecker, TyTable};
-use crate::world::{Axiom, Builder, DepCheck, World, WorldImpl};
+use crate::world::{Axiom, World, WorldImpl};
 use crate::source::Source;
 use crate::sym::*;
 use crate::visitor::Visitor;
@@ -46,6 +46,8 @@ mod def;
 mod utils;
 mod data;
 mod emit;
+mod builder;
+mod tools;
 
 pub fn main() {
 

@@ -1,6 +1,7 @@
 
 
 use std::borrow::{Borrow, BorrowMut};
+use std::mem::MaybeUninit;
 use std::ops::{Deref, DerefMut};
 use std::ptr::{null, null_mut};
 use std::rc::Rc;
@@ -138,10 +139,10 @@ macro_rules! arr_for_each (
             (slice as *mut T).add(index)
         }
 
-        let mut arr = MaybeUninit::<[_; $size]>::uninit();
+        let mut arr = std::mem::MaybeUninit::<[_; $size]>::uninit();
         unsafe {
             for i in 0..$size {
-                ptr::write(get_item_ptr(arr.as_mut_ptr(), i), $factory(i));
+                std::ptr::write(get_item_ptr(arr.as_mut_ptr(), i), $factory(i));
             }
             arr.assume_init()
         }

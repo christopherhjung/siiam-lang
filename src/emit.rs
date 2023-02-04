@@ -3,8 +3,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
-use crate::{Array, Builder, Decl, Module, Sym, SymTable, Visitor, World};
+use crate::{Array, Decl, Module, Sym, SymTable, Visitor, World};
 use crate::ast::{DeclKind, Expr, ExprKind, Literal, Op, PrimTy, Stmt};
+use crate::builder::Builder;
 use crate::check::{Ty, TyRef};
 use crate::def::Def;
 
