@@ -1,13 +1,17 @@
 
-struct A{
+struct PersonA{
     x : i32
-    y : B
-    z : i32
+    in_bzg : PersonB
 }
 
-struct B{
+struct PersonB{
     x : i32
-    y : A
+    in_bzg : PersonA
+}
+
+struct PersonXXX{
+    x : i32
+    in_bzg : PersonXXX
 }
 
 fn main(h : i64) : i64{
