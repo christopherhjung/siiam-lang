@@ -113,7 +113,7 @@ impl Builder{
     }
 
     pub fn ty_unit(&mut self) -> Def {
-        self.tuple([])
+        self.sigma([])
     }
 
     pub fn lit(&mut self, value: u32, ty: &Def) -> Def {
@@ -171,12 +171,8 @@ impl Builder{
         Def::new(&self.world, raw)
     }
 
-    pub fn tuple_arr(&mut self, elems: Array<Def>) -> Def {
-        let elem_links = Array::new(elems.len());
-        for idx in 0 .. elems.len(){
-            elem_links.set(idx, elems.get(idx).link)
-        }
-        let raw = self.tuple_arr_raw(elem_links);
+    pub fn tuple_arr(&mut self, elems: Array<DefLink>) -> Def {
+        let raw = self.tuple_arr_raw(elems);
         Def::new(&self.world, raw)
     }
 

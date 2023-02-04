@@ -80,6 +80,12 @@ pub trait Visitor{
                 for mut stmt in &mut block.stmts{
                     self.visit_stmt(stmt);
                 }
+            },
+            ExprKind::FnCall(fn_call) => {
+                self.visit_expr(&mut *fn_call.callee);
+                for mut arg in &mut fn_call.args{
+                    self.visit_expr(arg);
+                }
             }
             _ => return
         }

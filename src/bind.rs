@@ -90,13 +90,17 @@ impl Binder {
 }
 
 impl Visitor for Binder {
-
     fn enter_expr(&mut self, expr: &mut Expr) {
         match &mut expr.kind {
             ExprKind::Block(_) => self.push_scope(),
             ExprKind::Ident(ident_expr) => {
                 let ident_use = &mut ident_expr.ident_use;
-                ident_use.decl = self.lookup(ident_use.ident.sym);
+
+                if let Some(decl) = self.lookup(ident_use.ident.sym){
+                    ident_use.decl = Some(decl);
+                }else{
+                    println!("count not bind {:?}", expr)
+                }
             },
             _ => {}
         }

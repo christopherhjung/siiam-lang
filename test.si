@@ -14,8 +14,12 @@ struct PersonXXX{
     in_bzg : PersonXXX
 }
 
-fn main(h : i64) : i64{
-    h + h
+fn f(h : i64) : i64{
+    g(h)
+}
+
+fn g(h : i64) : i64{
+    f(h)
 }
 
 

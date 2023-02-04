@@ -247,6 +247,17 @@ impl Visitor for ProgramPrinter {
             ExprKind::Postfix(postfix_expr) => {
                 self.visit_expr(&mut postfix_expr.expr);
                 self.print( postfix_expr.op.sign());
+            },
+            ExprKind::FnCall(call_expr) => {
+                self.visit_expr(&mut *call_expr.callee);
+                self.print("(");
+                let mut sep = "";
+                for arg in &mut call_expr.args{
+                    self.print(sep);
+                    self.visit_expr(&mut *arg);
+                    sep = ", ";
+                }
+                self.print(")");
             }
             _ => {}
         }

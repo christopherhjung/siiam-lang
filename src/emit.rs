@@ -9,6 +9,11 @@ use crate::builder::Builder;
 use crate::check::{Ty, TyRef};
 use crate::def::Def;
 
+enum HirEmitterMode{
+    Decl,
+    Def
+}
+
 pub struct HirEmitter {
     fns: HashMap<String, Def>,
     structs: HashMap<String, Def>,
@@ -18,7 +23,8 @@ pub struct HirEmitter {
     world : World,
     b : Builder,
     curr_mem: Option<Def>,
-    cur_bb: Option<Def>
+    cur_bb: Option<Def>,
+    mode : HirEmitterMode
 }
 
 impl HirEmitter {
@@ -34,6 +40,17 @@ impl HirEmitter {
     }
 
     fn map_decl(&mut self, decl: &Decl, val: Def){
+        let name = self.name(decl.ident.sym);
+        match &decl.kind {
+            DeclKind::FnDecl(_) => {
+                self.fns.insert(name, val.clone());
+            }
+            DeclKind::StructDecl(_) => {
+                self.fns.insert(name, val.clone());
+            }
+            _ => {}
+        }
+
         self.decl2def.insert(decl as *const Decl, val);
     }
 
@@ -79,13 +96,13 @@ impl HirEmitter {
 
                     let sigma = self.b.sigma_arr(member_tys);
                     self.struct2def.insert(ty_ref, sigma.clone());
+                    self.structs.insert(self.name(struct_ty.name), sigma.clone());
 
                     for (idx, member_ty) in struct_ty.members.iter().enumerate(){
                         let mem_ty_def = self.emit_ty(*member_ty);
                         sigma.set_op(idx, &mem_ty_def);
                     }
 
-                    self.structs.insert(self.name(struct_ty.name), sigma.clone());
                     sigma
                 }
             }
@@ -108,7 +125,8 @@ impl HirEmitter {
             world,
             b: builder,
             curr_mem: None,
-            cur_bb: None
+            cur_bb: None,
+            mode: HirEmitterMode::Decl
         }
     }
 
@@ -129,44 +147,45 @@ impl HirEmitter {
     }
 
     pub fn emit_module(&mut self, module: &Module){
+        self.mode = HirEmitterMode::Decl;
+        for mut item in &module.items{
+            self.emit_decl(item);
+        }
+        self.mode = HirEmitterMode::Def;
         for mut item in &module.items{
             self.emit_decl(item);
         }
     }
 
-    fn emit_decl(&mut self, decl: &Decl) -> Def {
-        let name = self.name(decl.ident.sym);
+    fn emit_decl(&mut self, decl: &Decl){
         match &decl.kind {
             DeclKind::FnDecl(fn_decl) => {
                 let fnc_ty = self.emit_ty(decl.ty.unwrap());
                 
                 let fnc = self.b.lam(&fnc_ty);
-                let res = fnc.clone();
+                self.map_decl(decl, fnc.clone());
                 let var = self.b.var(&fnc);
 
-                let mut idx = 0;
                 let arity = self.b.ty_idx(fn_decl.params.len() as u32);
 
-                for param in &fn_decl.params{
-                    let pos = self.b.lit(idx, &arity);
+                for (idx, param) in fn_decl.params.iter().enumerate(){
+                    let pos = self.b.lit(idx as u32, &arity);
                     let val = self.b.extract(&var, &pos);
                     self.map_decl(param, val);
-                    idx+=1;
                 }
 
-                self.fns.insert(name, fnc);
                 let body = self.remit_expr(&fn_decl.body);
-                self.b.set_body(&res, &body);
-                res
+                self.b.set_body(&fnc, &body);
             }
             DeclKind::StructDecl(struct_decl) => {
                 if let Some(struct_ty) = decl.ty{
-                    self.emit_ty(struct_ty)
+                    let struct_ty_def = self.emit_ty(struct_ty);
+                    self.map_decl(decl, struct_ty_def);
                 }else{
-                    self.b.bot()
+                    self.b.bot();
                 }
             }
-            _ => self.b.bot()
+            _ => {}
         }
     }
 
@@ -224,6 +243,18 @@ impl HirEmitter {
                 }
                 val
             },
+            ExprKind::FnCall(call_expr) => {
+                let callee = self.remit_expr(&*call_expr.callee);
+
+                let arr = Array::new(call_expr.args.len());
+                for (idx, arg) in call_expr.args.iter().enumerate(){
+                    let arg_def = self.remit_expr(arg);
+                    arr.set(idx, arg_def.link);
+                }
+
+                let arg_def = self.b.tuple_arr(arr);
+                self.b.app(&callee, &arg_def)
+            }
             _ => {
                 println!("{:?}", expr);
                 panic!()
