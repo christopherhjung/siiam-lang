@@ -15,7 +15,7 @@ use sha2::digest::{FixedOutput, Update};
 use sha2::{Digest, Sha224, Sha256, Sha512};
 
 use crate::ast::{Decl, Module};
-use crate::bind::NameBinder;
+use crate::bind::Binder;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::check::{TypeChecker, TyTable};
@@ -65,13 +65,13 @@ pub fn main() {
     //println!("{:#?}", module);
 
     let start_parse = Instant::now();
-    let mut binder = NameBinder::new();
+    let mut binder = Binder::new();
     binder.resolve(&mut module);
     let duration_parse = start_parse.elapsed();
     println!("Binder: {:?}", duration_parse);
 
-    let mut ty_table = Rc::new(RefCell::new(TyTable::new()));
 
+    let mut ty_table = Rc::new(RefCell::new(TyTable::new()));
     let start_parse = Instant::now();
     let mut checker = TypeChecker::new(ty_table);
     checker.visit_module(&mut module);

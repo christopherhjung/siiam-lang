@@ -1,12 +1,19 @@
 
-struct Point{
+struct A{
     x : i32
-    y : Point
+    y : B
+    z : i32
+}
+
+struct B{
+    x : i32
+    y : A
 }
 
 fn main(h : i64) : i64{
-    h * 2
+    h + h
 }
+
 
 /*
 

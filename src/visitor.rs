@@ -6,7 +6,7 @@ pub trait Visitor{
     fn enter_module(&mut self, module: &mut Module){}
     fn exit_module(&mut self, module: &mut Module){}
 
-    fn enter_decl(&mut self, decl: &mut Decl){}
+    fn bind_decl(&mut self, decl: &mut Decl){}
     fn exit_decl(&mut self, decl: &mut Decl){}
 
     fn enter_expr(&mut self, expr: &mut Expr){}
@@ -24,7 +24,7 @@ pub trait Visitor{
     }
 
     fn visit_decl(&mut self, decl: &mut Decl){
-        self.enter_decl(decl);
+        self.bind_decl(decl);
         match &mut decl.kind {
             DeclKind::FnDecl(fn_decl) => {
                 for mut param in &mut fn_decl.params{
