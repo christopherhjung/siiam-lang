@@ -44,15 +44,21 @@ pub struct WorldImpl {
 
 #[derive(EnumIter, Hash, Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Axiom{
-    Bot, Data, Tuple, Sigma, Pack, Extract, App, Pi, Lam, Var, Add, Mul,
+    Bot, Data,
+    Tuple, Sigma, Pack, Extract, App, Pi, Lam, Var,
     Literal,
-    TyIdx, TyInt, TyReal, TyUnit,
+    TyIdx, TyInt, TyReal,
+    Add, Sub, Mul, Div,
     Slot, Alloc, Store, Load, Free, Ptr, Mem
 }
 
 impl WorldImpl {
     pub fn axiom( &self, ax : Axiom ) -> DefLink {
         *self.axioms.get(&ax).unwrap()
+    }
+
+    pub fn def2axiom( &self, link : DefLink ) -> Option<Axiom> {
+        self.axioms_rev.get(&link).cloned()
     }
 
     pub fn insert_def(&mut self, def : Box<DefModel>) -> DefLink{
@@ -374,9 +380,22 @@ impl Builder{
         self.app_raw(ax, arg)
     }
 
+    pub fn sub(&mut self, lhs: &Def, rhs: &Def) -> Def {
+        let ax = self.axiom_raw(Axiom::Sub);
+        let arg = self.tuple_arr_raw(array![lhs.link, rhs.link]);
+        self.app_raw(ax, arg)
+    }
+
     pub fn mul(&mut self, lhs: &Def, rhs: &Def) -> Def {
         let ax = self.axiom_raw(Axiom::Mul);
-        self.node_def(ax, array![lhs.link, rhs.link])
+        let arg = self.tuple_arr_raw(array![lhs.link, rhs.link]);
+        self.app_raw(ax, arg)
+    }
+
+    pub fn div(&mut self, lhs: &Def, rhs: &Def) -> Def {
+        let ax = self.axiom_raw(Axiom::Div);
+        let arg = self.tuple_arr_raw(array![lhs.link, rhs.link]);
+        self.app_raw(ax, arg)
     }
 
     pub fn slot(&mut self, ty: &Def, mem: &Def) -> Def {

@@ -224,7 +224,7 @@ pub struct WhileExpr {
     else_branch : Option<Box<Expr>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Op {
     Assign,
     AddAssign,

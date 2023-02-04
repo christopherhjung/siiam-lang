@@ -5,13 +5,30 @@ struct Point{
 }
 
 fn main(h : i64) : i64{
-    let a = 9
-    let x = a - h
-    let y = x * x
-    y
+    let z = 9
+    let a = (z - z)
+    let c = a - a
+    c
 }
 
 /*
+
+
+fn main(h : i64) : i64{
+    let z = 9
+    let c = (z - z) - (z - z)
+    let d = c + c
+    let e = d - d
+    let f = e - e
+    let g = f - f
+    let h = g - g
+    let i = h - h
+    let j = i - i
+    let k = j - j
+    let l = k * k
+    l
+}
+
 
 fn lol(  ){
     let return2 : fn(i32) = return;

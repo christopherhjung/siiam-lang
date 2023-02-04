@@ -19,7 +19,7 @@ use crate::data::Data;
 use crate::token::TokenKind;
 use crate::utils::{MutBox, UnsafeMut};
 use crate::world::World;
-use crate::WorldImpl;
+use crate::{Axiom, WorldImpl};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct DefLink{
@@ -203,6 +203,10 @@ impl Def {
 
     pub fn new(world: &Rc<MutBox<WorldImpl>>, link: DefLink) -> Def {
         Def { world: world.clone(), link }
+    }
+
+    pub fn axiom(&self) -> Option<Axiom>{
+        self.world.def2axiom(self.link)
     }
 
     fn new_raw(&self, link: DefLink) -> Def {

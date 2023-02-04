@@ -133,6 +133,10 @@ impl Parser {
 
     fn parse_block(&mut self) -> Box<Expr>{
         self.expect(TokenKind::LBrace);
+        self.parse_block_ahead()
+    }
+
+    fn parse_block_ahead(&mut self) -> Box<Expr>{
         let stmts = self.parse_statement_list();
         Box::new(Expr::new(ExprKind::Block(Block{ stmts })))
     }
@@ -287,8 +291,16 @@ impl Parser {
     }
 
     fn parse_prefix_expr(&mut self, op: Op) -> Box<Expr> {
-        let expr = self.parse_expr_prec(op.prec());
-        Box::new(Expr::new(ExprKind::Prefix(PrefixExpr { expr, op })))
+        if op == Op::LeftParen{
+            let expr = self.parse_expr();
+            self.expect(TokenKind::RParen);
+            expr
+        }else if op == Op::LeftBracket{
+            self.parse_block_ahead()
+        }else{
+            let expr = self.parse_expr_prec(op.prec());
+            Box::new(Expr::new(ExprKind::Prefix(PrefixExpr { expr, op })))
+        }
     }
 
     fn parse_primary_expr(&mut self) -> Box<Expr> {
@@ -299,12 +311,6 @@ impl Parser {
             TokenKind::LitChar |
             TokenKind::LitBool => Box::new(Expr::new(ExprKind::Literal(self.parse_literal()))),
             TokenKind::Ident => Box::new(Expr::new(ExprKind::Ident(IdentExpr { ident_use: Box::new(IdentUse::new(self.parse_ident())) }))),
-            TokenKind::LParen => {
-                self.lex();
-                let expr = self.parse_expr();
-                self.expect(TokenKind::RParen);
-                expr
-            }
             TokenKind::If => self.parse_if(),
             _ => unreachable!()
         }
@@ -456,6 +462,7 @@ impl Parser {
         let mut stmts = Vec::new();
         while !self.accept(TokenKind::RBrace) {
             if !stmts.is_empty() {
+                println!("{:?}", self.ahead());
                 assert!(self.enter(TokenEnter::NL), "Statement does not start with a new line");
             }
             stmts.push(self.parse_stmts());

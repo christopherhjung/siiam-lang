@@ -77,7 +77,7 @@ impl HirEmitter {
         }
     }
 
-    pub fn new(sym_table: Rc<RefCell<SymTable>>) -> HirEmitter {
+    pub fn new(sym_table: Rc<RefCell<SymTable>>, world: World) -> HirEmitter {
         let world= World::new();
         let builder = world.builder();
         HirEmitter {
@@ -139,19 +139,18 @@ impl HirEmitter {
                 let body = self.remit_expr(&fn_decl.body);
                 self.b.set_body(&res, &body);
                 res
-            },
+            }
             _ => self.b.bot()
         }
     }
 
     fn emit_stmt(&mut self, stmt: &Stmt) -> Def {
-        
         match stmt {
             Stmt::Expr(expr_stmt) => {
                 self.remit_expr(&expr_stmt.expr)
             },
             Stmt::Let(let_stmt) =>{
-                let ty = self.emit_ty(let_stmt.local_decl.ty.unwrap());
+                //let ty = self.emit_ty(let_stmt.local_decl.ty.unwrap());
 
                 if let Some(init) = &let_stmt.init{
                     let init_val = self.remit_expr(init);
@@ -160,13 +159,12 @@ impl HirEmitter {
                     panic!()
                 }
 
-                self.b.tuple([])
+                self.b.unit()
             }
         }
     }
 
     fn remit_expr(&mut self, expr: &Expr) -> Def {
-        
         match &expr.kind {
             ExprKind::Literal(lit) => {
                 match lit {
@@ -179,7 +177,13 @@ impl HirEmitter {
                 let lhs_val = self.remit_expr(&infix_expr.lhs);
                 let rhs_val = self.remit_expr(&infix_expr.rhs);
 
-                self.b.add(&lhs_val, &rhs_val)
+                match infix_expr.op {
+                    Op::Add => self.b.add(&lhs_val, &rhs_val),
+                    Op::Sub => self.b.sub(&lhs_val, &rhs_val),
+                    Op::Mul => self.b.mul(&lhs_val, &rhs_val),
+                    Op::Div => self.b.div(&lhs_val, &rhs_val),
+                    _ => panic!()
+                }
             },
             ExprKind::Ident(ident_expr) => {
                 let decl =  unsafe{&*ident_expr.ident_use.decl.unwrap()};
@@ -194,19 +198,10 @@ impl HirEmitter {
                 }
                 val
             },
-            _ => panic!()
+            _ => {
+                println!("{:?}", expr);
+                panic!()
+            }
         }
-    }
-}
-
-impl Op{
-    fn llvm_op(&self) -> String{
-        String::from(match self {
-            Op::Add => "add",
-            Op::Sub => "sub",
-            Op::Mul => "mul",
-            Op::Div => "div",
-            _ => panic!()
-        })
     }
 }
