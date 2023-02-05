@@ -347,7 +347,7 @@ impl<'a> CyclicSigner<'a> {
 
     fn collect(&mut self, curr: DefLink, list: &mut Vec<DefLink>){
         if let Some(curr_node) = self.nodes.get_mut(&curr){
-            if curr_node.index == curr_node.low_link && !list.is_empty(){
+            if curr_node.index == curr_node.low_link && !list.is_empty() || curr_node.closed{
                 return
             }
 

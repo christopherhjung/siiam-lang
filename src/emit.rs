@@ -9,6 +9,7 @@ use crate::builder::Builder;
 use crate::check::{Ty, TyRef};
 use crate::def::Def;
 
+#[derive(PartialEq, Eq)]
 enum HirEmitterMode{
     Decl,
     Def
@@ -46,12 +47,16 @@ impl HirEmitter {
                 self.fns.insert(name, val.clone());
             }
             DeclKind::StructDecl(_) => {
-                self.fns.insert(name, val.clone());
+                self.structs.insert(name, val.clone());
             }
             _ => {}
         }
 
         self.decl2def.insert(decl as *const Decl, val);
+    }
+
+    fn get_decl(&self, decl: &Decl) -> Option<Def>{
+        self.decl2def.get(&(decl as *const Decl)).cloned()
     }
 
     fn emit_opt_ty(&mut self, ty_ref: Option<TyRef> ) -> Def{
@@ -96,7 +101,7 @@ impl HirEmitter {
 
                     let sigma = self.b.sigma_arr(member_tys);
                     self.struct2def.insert(ty_ref, sigma.clone());
-                    self.structs.insert(self.name(struct_ty.name), sigma.clone());
+                    //self.structs.insert(self.name(struct_ty.name), sigma.clone());
 
                     for (idx, member_ty) in struct_ty.members.iter().enumerate(){
                         let mem_ty_def = self.emit_ty(*member_ty);
@@ -158,34 +163,53 @@ impl HirEmitter {
     }
 
     fn emit_decl(&mut self, decl: &Decl){
-        match &decl.kind {
-            DeclKind::FnDecl(fn_decl) => {
-                let fnc_ty = self.emit_ty(decl.ty.unwrap());
-                
-                let fnc = self.b.lam(&fnc_ty);
-                self.map_decl(decl, fnc.clone());
-                let var = self.b.var(&fnc);
-
-                let arity = self.b.ty_idx(fn_decl.params.len() as u32);
-
-                for (idx, param) in fn_decl.params.iter().enumerate(){
-                    let pos = self.b.lit(idx as u32, &arity);
-                    let val = self.b.extract(&var, &pos);
-                    self.map_decl(param, val);
+        if self.mode == HirEmitterMode::Decl{
+            match &decl.kind {
+                DeclKind::FnDecl(_) => {
+                    let fnc_ty = self.emit_ty(decl.ty.unwrap());
+                    let fnc = self.b.lam(&fnc_ty);
+                    self.map_decl(decl, fnc);
                 }
-
-                let body = self.remit_expr(&fn_decl.body);
-                self.b.set_body(&fnc, &body);
-            }
-            DeclKind::StructDecl(struct_decl) => {
-                if let Some(struct_ty) = decl.ty{
-                    let struct_ty_def = self.emit_ty(struct_ty);
-                    self.map_decl(decl, struct_ty_def);
-                }else{
-                    self.b.bot();
+                DeclKind::StructDecl(_) => {
+                    if let Some(struct_ty) = decl.ty{
+                        let struct_ty_def = self.emit_ty(struct_ty);
+                        self.map_decl(decl, struct_ty_def);
+                    }else{
+                        self.b.bot();
+                    }
                 }
+                _ => {}
             }
-            _ => {}
+        }else{
+            match &decl.kind {
+                DeclKind::FnDecl(fn_decl) => {
+                    let fnc = if let Some(fnc) = self.get_decl(decl){
+                        fnc
+                    }else{
+                        let fnc_ty = self.emit_ty(decl.ty.unwrap());
+                        let fnc = self.b.lam(&fnc_ty);
+                        self.map_decl(decl, fnc.clone());
+                        fnc
+                    };
+
+                    let var = self.b.var(&fnc);
+                    let arity = self.b.ty_idx(fn_decl.params.len() as u32);
+
+                    for (idx, param) in fn_decl.params.iter().enumerate(){
+                        let pos = self.b.lit(idx as u32, &arity);
+                        let val = self.b.extract(&var, &pos);
+                        self.map_decl(param, val);
+                    }
+
+                    self.cur_bb = Some(fnc.clone());
+                    let body = self.remit_expr(&fn_decl.body);
+
+                    let ret = self.b.ret(&fnc);
+                    let ret_app = self.b.app(&ret, &body);
+                    self.b.set_body(&self.cur_bb.clone().unwrap(), &ret_app);
+                }
+                _ => {}
+            }
         }
     }
 
@@ -216,33 +240,37 @@ impl HirEmitter {
                     Literal::Int(int_val) => self.b.lit_int(32, *int_val as u32),
                     _ => panic!()
                 }
-            },
+            }
             ExprKind::Infix(infix_expr) => {
                 //let ty = self.emit_ty(expr.ty.unwrap());
                 let lhs_val = self.remit_expr(&infix_expr.lhs);
                 let rhs_val = self.remit_expr(&infix_expr.rhs);
 
-                match infix_expr.op {
+                match &infix_expr.op {
                     Op::Add => self.b.add(&lhs_val, &rhs_val),
                     Op::Sub => self.b.sub(&lhs_val, &rhs_val),
                     Op::Mul => self.b.mul(&lhs_val, &rhs_val),
                     Op::Div => self.b.div(&lhs_val, &rhs_val),
-                    _ => panic!()
+                    Op::Gt => self.b.div(&lhs_val, &rhs_val),
+                    op => {
+                        println!("{:?}", op);
+                        panic!()
+                    }
                 }
-            },
+            }
             ExprKind::Ident(ident_expr) => {
                 let decl =  unsafe{&*ident_expr.ident_use.decl.unwrap()};
                 //let ty = self.emit_ty(decl.ty.unwrap());
                 let val = self.decl2def.get(&ident_expr.ident_use.decl.unwrap()).unwrap();
                 val.clone()
-            },
+            }
             ExprKind::Block(block_expr) => {
                 let mut val = self.b.bot();
                 for stmt in &block_expr.stmts{
                     val = self.emit_stmt(stmt);
                 }
                 val
-            },
+            }
             ExprKind::FnCall(call_expr) => {
                 let callee = self.remit_expr(&*call_expr.callee);
 
@@ -254,6 +282,49 @@ impl HirEmitter {
 
                 let arg_def = self.b.tuple_arr(arr);
                 self.b.app(&callee, &arg_def)
+            }
+            ExprKind::If(if_expr) => {
+                let ty_unit = self.b.ty_unit();
+                let unit =  self.b.unit();
+                let bot =  self.b.bot();
+
+                let if_ty = self.b.pi(&unit, &bot);
+
+                let true_fn = self.b.lam(&if_ty);
+                let false_fn = self.b.lam(&if_ty);
+
+                let cmp = self.remit_expr(&if_expr.condition);
+                let branches = self.b.tuple([&true_fn, &false_fn]);
+                let callee = self.b.extract(&branches, &cmp);
+
+                let app = self.b.app(&callee, &unit);
+                self.b.set_body(&self.cur_bb.clone().unwrap(), &app);
+                self.cur_bb = Some(true_fn);
+
+                let left_val = self.remit_expr(&if_expr.true_branch);
+
+                if let Some(false_branch) = &if_expr.false_branch{
+                    let val_ty = self.emit_opt_ty(expr.ty);
+                    let join_ty = self.b.pi(&val_ty, &bot);
+                    let join_fn = self.b.lam(&join_ty);
+
+                    let app = self.b.app(&join_fn, &left_val);
+                    self.b.set_body(&self.cur_bb.clone().unwrap(), &app);
+
+                    self.cur_bb = Some(false_fn);
+                    let right_val = self.remit_expr(false_branch);
+                    let app = self.b.app(&join_fn, &right_val);
+                    self.b.set_body(&self.cur_bb.clone().unwrap(), &app);
+
+                    let join_var = self.b.var(&join_fn);
+                    self.cur_bb = Some(join_fn);
+                    join_var
+                }else{
+                    let app = self.b.app(&false_fn, &unit);
+                    self.b.set_body(&self.cur_bb.clone().unwrap(), &app);
+                    self.cur_bb = Some(false_fn);
+                    unit
+                }
             }
             _ => {
                 println!("{:?}", expr);

@@ -40,6 +40,7 @@ impl Builder{
 
         for def in *defs{
             if !DepCheck::valid(def.link) {
+                println!("{:?}", self.world.def2axiom(def.link));
                 panic!()
             }
 
@@ -240,6 +241,11 @@ impl Builder{
         self.node_def(ax, array![lam.link])
     }
 
+    pub fn ret(&mut self, lam: &Def) -> Def {
+        let ax = self.axiom_raw(Axiom::Ret);
+        self.node_def(ax, array![lam.link])
+    }
+
     pub fn add(&mut self, lhs: &Def, rhs: &Def) -> Def {
         if lhs.link.ax == self.axiom_raw(Axiom::Add){
             let [lhs, rhs] = lhs.ops();
@@ -277,6 +283,12 @@ impl Builder{
 
     pub fn div(&mut self, lhs: &Def, rhs: &Def) -> Def {
         let ax = self.axiom_raw(Axiom::Div);
+        let arg = self.tuple_arr_raw(array![lhs.link, rhs.link]);
+        self.app_raw(ax, arg)
+    }
+
+    pub fn gt(&mut self, lhs: &Def, rhs: &Def) -> Def {
+        let ax = self.axiom_raw(Axiom::Gt);
         let arg = self.tuple_arr_raw(array![lhs.link, rhs.link]);
         self.app_raw(ax, arg)
     }

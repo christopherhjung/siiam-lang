@@ -295,8 +295,6 @@ impl Parser {
             let expr = self.parse_expr();
             self.expect(TokenKind::RParen);
             expr
-        }else if op == Op::LeftBracket{
-            self.parse_block_ahead()
         }else{
             let expr = self.parse_expr_prec(op.prec());
             Box::new(Expr::new(ExprKind::Prefix(PrefixExpr { expr, op })))
@@ -312,7 +310,11 @@ impl Parser {
             TokenKind::LitBool => Box::new(Expr::new(ExprKind::Literal(self.parse_literal()))),
             TokenKind::Ident => Box::new(Expr::new(ExprKind::Ident(IdentExpr { ident_use: Box::new(IdentUse::new(self.parse_ident())) }))),
             TokenKind::If => self.parse_if(),
-            _ => unreachable!()
+            TokenKind::LBrace => self.parse_block(),
+            _ => {
+                println!("{:?}", self.kind());
+                unreachable!()
+            }
         }
     }
 

@@ -46,10 +46,12 @@ pub struct WorldImpl {
 #[derive(EnumIter, Hash, Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Axiom{
     Bot, Data,
-    Tuple, Sigma, Pack, Extract, App, Pi, Lam, Var,
+    Tuple, Sigma, Pack, Extract,
+    App, Pi, Lam, Var, Ret,
     Literal,
     TyIdx, TyInt, TyReal,
     Add, Sub, Mul, Div,
+    Gt,
     Slot, Alloc, Store, Load, Free, Ptr, Mem
 }
 

@@ -82,9 +82,16 @@ pub trait Visitor{
                 }
             },
             ExprKind::FnCall(fn_call) => {
-                self.visit_expr(&mut *fn_call.callee);
+                self.visit_expr(&mut fn_call.callee);
                 for mut arg in &mut fn_call.args{
                     self.visit_expr(arg);
+                }
+            }
+            ExprKind::If(if_expr) => {
+                self.visit_expr(&mut if_expr.condition);
+                self.visit_expr(&mut if_expr.true_branch);
+                if let Some(false_branch) = &mut if_expr.false_branch{
+                    self.visit_expr(false_branch);
                 }
             }
             _ => return

@@ -1,25 +1,92 @@
 
-struct PersonA{
-    x : i32
-    in_bzg : PersonB
+struct Node{
+    value : i32
+    next : Node
 }
 
-struct PersonB{
-    x : i32
-    in_bzg : PersonA
-}
+fn max(x : i64, y: i64) : i64{
 
-struct PersonXXX{
-    x : i32
-    in_bzg : PersonXXX
-}
-
-fn f(h : i64) : i64{
-    g(h)
-}
-
-fn g(h : i64) : i64{
-    f(h)
+    if x > y{
+        if x > y{
+                if x > y{
+                        if x > y{
+                                if x > y{
+                                        if x > y{
+                                                x + y
+                                            }else{
+                                                y / x
+                                            }
+                                    }else{
+                                        if x > y{
+                                                x - y
+                                            }else{
+                                                y * y
+                                            }
+                                    }
+                            }else{
+                                if x > y{
+                                        x + y
+                                    }else{
+                                        y + y
+                                    }
+                            }
+                    }else{
+                        if x > y{
+                                if x > y{
+                                        if x > y{
+                                                x + y
+                                            }else{
+                                                y / x
+                                            }
+                                    }else{
+                                        if x > y{
+                                                x - y
+                                            }else{
+                                                y * y
+                                            }
+                                    }
+                            }else{
+                                if x > y{
+                                        x + y
+                                    }else{
+                                        y + y
+                                    }
+                            }
+                    }
+            }else{
+                if x > y{
+                        x - y
+                    }else{
+                        if x > y{
+                                if x > y{
+                                        if x > y{
+                                                x + y
+                                            }else{
+                                                y / x
+                                            }
+                                    }else{
+                                        if x > y{
+                                                x - y
+                                            }else{
+                                                y * y
+                                            }
+                                    }
+                            }else{
+                                if x > y{
+                                        x + y
+                                    }else{
+                                        y + y
+                                    }
+                            }
+                    }
+            }
+    }else{
+        if x > y{
+                x + y
+            }else{
+                y + y
+            }
+    }
 }
 
 
