@@ -310,6 +310,7 @@ impl Parser {
             TokenKind::LitBool => Box::new(Expr::new(ExprKind::Literal(self.parse_literal()))),
             TokenKind::Ident => Box::new(Expr::new(ExprKind::Ident(IdentExpr { ident_use: Box::new(IdentUse::new(self.parse_ident())) }))),
             TokenKind::If => self.parse_if(),
+            TokenKind::While => self.parse_while(),
             TokenKind::LBrace => self.parse_block(),
             _ => {
                 println!("{:?}", self.kind());
@@ -408,7 +409,6 @@ impl Parser {
         }
     }
 
-
     fn parse_if(&mut self) -> Box<Expr>{
         self.expect(TokenKind::If);
         let condition = self.parse_expr();
@@ -426,6 +426,25 @@ impl Parser {
         };
 
         Box::new(Expr::new(ExprKind::If(IfExpr{condition, true_branch: if_branch, false_branch: else_branch })))
+    }
+
+    fn parse_while(&mut self) -> Box<Expr>{
+        self.expect(TokenKind::While);
+        let condition = self.parse_expr();
+        self.check_kind(TokenKind::LBrace);
+        let body = self.parse_block();
+
+        let mut else_branch = if self.accept(TokenKind::Else) {
+            Some(if self.is(TokenKind::If){
+                self.parse_if()
+            }else{
+                self.parse_block()
+            })
+        }else{
+            None
+        };
+
+        Box::new(Expr::new(ExprKind::While(WhileExpr{condition, body, else_branch })))
     }
 
     fn parse_decl(&mut self) -> Box<Stmt>{

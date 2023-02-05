@@ -94,6 +94,13 @@ pub trait Visitor{
                     self.visit_expr(false_branch);
                 }
             }
+            ExprKind::While(while_expr) => {
+                self.visit_expr(&mut while_expr.condition);
+                self.visit_expr(&mut while_expr.body);
+                if let Some(else_branch) = &mut while_expr.else_branch{
+                    self.visit_expr(else_branch);
+                }
+            }
             _ => return
         }
         self.exit_expr(expr);

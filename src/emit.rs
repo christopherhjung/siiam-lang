@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use crate::{Array, Decl, Module, Sym, SymTable, Visitor, World};
-use crate::ast::{DeclKind, Expr, ExprKind, Literal, Op, PrimTy, Stmt};
+use crate::ast::{DeclKind, Expr, ExprKind, IfExpr, Literal, Op, PrimTy, Stmt, WhileExpr};
 use crate::builder::Builder;
 use crate::check::{Ty, TyRef};
 use crate::def::Def;
@@ -284,53 +284,89 @@ impl HirEmitter {
                 self.b.app(&callee, &arg_def)
             }
             ExprKind::If(if_expr) => {
-                let ty_unit = self.b.ty_unit();
-                let unit =  self.b.unit();
-                let bot =  self.b.bot();
-
-                let if_ty = self.b.pi(&unit, &bot);
-
-                let true_fn = self.b.lam(&if_ty);
-                let false_fn = self.b.lam(&if_ty);
-
-                let cmp = self.remit_expr(&if_expr.condition);
-                let branches = self.b.tuple([&true_fn, &false_fn]);
-                let callee = self.b.extract(&branches, &cmp);
-
-                let app = self.b.app(&callee, &unit);
-                self.b.set_body(&self.cur_bb.clone().unwrap(), &app);
-                self.cur_bb = Some(true_fn);
-
-                let left_val = self.remit_expr(&if_expr.true_branch);
-
-                if let Some(false_branch) = &if_expr.false_branch{
-                    let val_ty = self.emit_opt_ty(expr.ty);
-                    let join_ty = self.b.pi(&val_ty, &bot);
-                    let join_fn = self.b.lam(&join_ty);
-
-                    let app = self.b.app(&join_fn, &left_val);
-                    self.b.set_body(&self.cur_bb.clone().unwrap(), &app);
-
-                    self.cur_bb = Some(false_fn);
-                    let right_val = self.remit_expr(false_branch);
-                    let app = self.b.app(&join_fn, &right_val);
-                    self.b.set_body(&self.cur_bb.clone().unwrap(), &app);
-
-                    let join_var = self.b.var(&join_fn);
-                    self.cur_bb = Some(join_fn);
-                    join_var
-                }else{
-                    let app = self.b.app(&false_fn, &unit);
-                    self.b.set_body(&self.cur_bb.clone().unwrap(), &app);
-                    self.cur_bb = Some(false_fn);
-                    unit
-                }
+                self.remit_if_expr(expr, if_expr)
+            }
+            ExprKind::While(while_expr) => {
+                self.remit_while_expr(expr, while_expr)
             }
             _ => {
                 println!("{:?}", expr);
                 panic!()
             }
         }
+    }
+
+    fn remit_if_expr(&mut self, expr: &Expr, if_expr: &IfExpr) -> Def{
+        let ty_unit = self.b.ty_unit();
+        let unit =  self.b.unit();
+        let bot =  self.b.bot();
+
+        let if_ty = self.b.pi(&unit, &bot);
+
+        let true_fn = self.b.lam(&if_ty);
+        let false_fn = self.b.lam(&if_ty);
+
+        let cmp = self.remit_expr(&if_expr.condition);
+        let branches = self.b.tuple([&true_fn, &false_fn]);
+        let callee = self.b.extract(&branches, &cmp);
+
+        let app = self.b.app(&callee, &unit);
+        self.b.set_body(&self.cur_bb.clone().unwrap(), &app);
+        self.cur_bb = Some(true_fn);
+
+        let left_val = self.remit_expr(&if_expr.true_branch);
+
+        if let Some(false_branch) = &if_expr.false_branch{
+            let val_ty = self.emit_opt_ty(expr.ty);
+            let join_ty = self.b.pi(&val_ty, &bot);
+            let join_fn = self.b.lam(&join_ty);
+
+            let app = self.b.app(&join_fn, &left_val);
+            self.b.set_body(&self.cur_bb.clone().unwrap(), &app);
+
+            self.cur_bb = Some(false_fn);
+            let right_val = self.remit_expr(false_branch);
+            let app = self.b.app(&join_fn, &right_val);
+            self.b.set_body(&self.cur_bb.clone().unwrap(), &app);
+
+            let join_var = self.b.var(&join_fn);
+            self.cur_bb = Some(join_fn);
+            join_var
+        }else{
+            let app = self.b.app(&false_fn, &unit);
+            self.b.set_body(&self.cur_bb.clone().unwrap(), &app);
+            self.cur_bb = Some(false_fn);
+            unit
+        }
+    }
+
+    fn remit_while_expr(&mut self, expr: &Expr, while_expr: &WhileExpr) -> Def{
+        let ty_unit = self.b.ty_unit();
+        let unit =  self.b.unit();
+        let bot =  self.b.bot();
+
+        let while_ty = self.b.pi(&unit, &bot);
+
+        let body_fn = self.b.lam(&while_ty);
+        let exit_fn = self.b.lam(&while_ty);
+
+        let cmp = self.remit_expr(&while_expr.condition);
+        let branches = self.b.tuple([&body_fn, &exit_fn]);
+        let callee = self.b.extract(&branches, &cmp);
+
+        let app = self.b.app(&callee, &unit);
+        self.b.set_body(&self.cur_bb.clone().unwrap(), &app);
+        self.cur_bb = Some(body_fn.clone());
+
+        self.remit_expr(&while_expr.body);
+
+        let cmp2 = self.remit_expr(&while_expr.condition);
+        let branches2 = self.b.tuple([&body_fn, &exit_fn]);
+        let callee2 = self.b.extract(&branches2, &cmp2);
+
+        self.b.set_body(&self.cur_bb.clone().unwrap(), &callee2);
+        self.cur_bb = Some(exit_fn);
+        unit
     }
 
     pub fn list(&mut self){

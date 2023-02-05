@@ -5,88 +5,11 @@ struct Node{
 }
 
 fn max(x : i64, y: i64) : i64{
+    while x > y{
 
-    if x > y{
-        if x > y{
-                if x > y{
-                        if x > y{
-                                if x > y{
-                                        if x > y{
-                                                x + y
-                                            }else{
-                                                y / x
-                                            }
-                                    }else{
-                                        if x > y{
-                                                x - y
-                                            }else{
-                                                y * y
-                                            }
-                                    }
-                            }else{
-                                if x > y{
-                                        x + y
-                                    }else{
-                                        y + y
-                                    }
-                            }
-                    }else{
-                        if x > y{
-                                if x > y{
-                                        if x > y{
-                                                x + y
-                                            }else{
-                                                y / x
-                                            }
-                                    }else{
-                                        if x > y{
-                                                x - y
-                                            }else{
-                                                y * y
-                                            }
-                                    }
-                            }else{
-                                if x > y{
-                                        x + y
-                                    }else{
-                                        y + y
-                                    }
-                            }
-                    }
-            }else{
-                if x > y{
-                        x - y
-                    }else{
-                        if x > y{
-                                if x > y{
-                                        if x > y{
-                                                x + y
-                                            }else{
-                                                y / x
-                                            }
-                                    }else{
-                                        if x > y{
-                                                x - y
-                                            }else{
-                                                y * y
-                                            }
-                                    }
-                            }else{
-                                if x > y{
-                                        x + y
-                                    }else{
-                                        y + y
-                                    }
-                            }
-                    }
-            }
-    }else{
-        if x > y{
-                x + y
-            }else{
-                y + y
-            }
     }
+
+    9
 }
 
 

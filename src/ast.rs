@@ -219,9 +219,9 @@ pub struct IfExpr {
 
 #[derive(Debug)]
 pub struct WhileExpr {
-    condition : Box<Expr>,
-    body : Box<Expr>,
-    else_branch : Option<Box<Expr>>,
+    pub condition : Box<Expr>,
+    pub body : Box<Expr>,
+    pub else_branch : Option<Box<Expr>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]

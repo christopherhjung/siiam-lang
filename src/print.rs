@@ -208,6 +208,19 @@ impl Visitor for ProgramPrinter {
                     self.visit_expr(false_branch);
                 }
             }
+            ExprKind::While(while_expr) => {
+                self.keyword("while");
+                self.space();
+                self.visit_expr(&mut while_expr.condition);
+                self.visit_expr(&mut while_expr.body);
+                if let Some( else_branch) = &mut while_expr.else_branch{
+                    self.keyword("else");
+                    if let ExprKind::If(_) = else_branch.kind{
+                        self.space();
+                    }
+                    self.visit_expr(else_branch);
+                }
+            }
             ExprKind::Block(block) => {
                 self.print("{");
                 self.nl();
