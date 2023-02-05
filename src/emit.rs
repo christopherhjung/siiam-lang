@@ -312,8 +312,7 @@ impl HirEmitter {
         let callee = self.b.extract(&branches, &cmp);
 
         let app = self.b.app(&callee, &unit);
-        self.b.set_body(&self.cur_bb.clone().unwrap(), &app);
-        self.cur_bb = Some(true_fn);
+        self.finish_bb(&app, &true_fn);
 
         let left_val = self.remit_expr(&if_expr.true_branch);
 
@@ -323,20 +322,17 @@ impl HirEmitter {
             let join_fn = self.b.lam(&join_ty);
 
             let app = self.b.app(&join_fn, &left_val);
-            self.b.set_body(&self.cur_bb.clone().unwrap(), &app);
+            self.finish_bb(&app, &false_fn);
 
-            self.cur_bb = Some(false_fn);
             let right_val = self.remit_expr(false_branch);
             let app = self.b.app(&join_fn, &right_val);
-            self.b.set_body(&self.cur_bb.clone().unwrap(), &app);
+            self.finish_bb(&app, &join_fn);
 
             let join_var = self.b.var(&join_fn);
-            self.cur_bb = Some(join_fn);
             join_var
         }else{
             let app = self.b.app(&false_fn, &unit);
-            self.b.set_body(&self.cur_bb.clone().unwrap(), &app);
-            self.cur_bb = Some(false_fn);
+            self.finish_bb(&app, &false_fn);
             unit
         }
     }
@@ -356,8 +352,7 @@ impl HirEmitter {
         let callee = self.b.extract(&branches, &cmp);
 
         let app = self.b.app(&callee, &unit);
-        self.b.set_body(&self.cur_bb.clone().unwrap(), &app);
-        self.cur_bb = Some(body_fn.clone());
+        self.finish_bb(&app, &body_fn);
 
         self.remit_expr(&while_expr.body);
 
@@ -365,9 +360,14 @@ impl HirEmitter {
         let branches2 = self.b.tuple([&body_fn, &exit_fn]);
         let callee2 = self.b.extract(&branches2, &cmp2);
 
-        self.b.set_body(&self.cur_bb.clone().unwrap(), &callee2);
-        self.cur_bb = Some(exit_fn);
+        self.finish_bb(&callee2, &exit_fn);
         unit
+    }
+
+    fn finish_bb(&mut self, body: &Def, next: &Def){
+        let prev = self.cur_bb.replace(next.clone());
+        self.b.set_body(&prev.unwrap(), &body);
+        self.cur_bb = Some(next.clone());
     }
 
     pub fn list(&mut self){
