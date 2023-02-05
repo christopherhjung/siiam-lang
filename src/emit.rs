@@ -293,7 +293,8 @@ impl HirEmitter {
                 let ret = self.b.ret(&fnc);
                 let ret_app = self.b.app(&ret, &ret_val);
                 self.finish_bb(&ret_app);
-                self.b.nothing()
+
+                self.b.nothing() //expr.ty.unwrap()
             }
             ExprKind::If(if_expr) => {
                 self.remit_if_expr(expr, if_expr)

@@ -16,7 +16,8 @@ pub struct Parser {
     ahead: [Token; LOOKAHEAD_SIZE],
     ahead_offset: usize,
     new_lines: usize,
-    sym_table: Rc<RefCell<SymTable>>
+    sym_table: Rc<RefCell<SymTable>>,
+    last_op: Option<Op>
 }
 
 impl Parser {
@@ -74,6 +75,7 @@ impl Parser {
     }
 
     fn expect(&mut self, kind: TokenKind) {
+        println!("{:?} {:?}", kind, self.kind());
         assert!(self.accept(kind), "Kinds do not match!");
     }
 
@@ -88,7 +90,6 @@ impl Parser {
         }
         Box::new(Module { items })
     }
-
 
     fn parse_item(&mut self) -> Box<Decl> {
         return match self.kind() {
@@ -202,7 +203,9 @@ impl Parser {
     }
 
     fn parse_operator(&mut self) -> Option<Op> {
-        Some(if self.accept(TokenKind::Plus) {
+        Some(if let Some(last_op) = self.last_op.take(){
+            return Some(last_op)
+        }else if self.accept(TokenKind::Plus) {
             //+, ++, +=
             if self.follow(TokenKind::Plus) {
                 Op::Inc
@@ -360,12 +363,14 @@ impl Parser {
             if let Some(op) = self.parse_operator(){
                 if op.is_infix() {
                     if prec > op.prec() {
+                        self.last_op = Some(op);
                         break;
                     }
 
                     lhs = self.parse_infix_expr(lhs, op);
                 } else if op.is_postfix() {
                     if prec == Prec::Top {
+                        self.last_op = Some(op);
                         break;
                     }
 
@@ -414,7 +419,6 @@ impl Parser {
     fn parse_if(&mut self) -> Box<Expr>{
         self.expect(TokenKind::If);
         let condition = self.parse_expr();
-        self.check_kind(TokenKind::LBrace);
         let if_branch = self.parse_block();
 
         let mut else_branch = if self.accept(TokenKind::Else) {
@@ -549,7 +553,8 @@ impl Parser {
             ahead: lookahead,
             ahead_offset: 0,
             new_lines: 0,
-            sym_table
+            sym_table,
+            last_op : None
         }
     }
 }
