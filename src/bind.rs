@@ -1,6 +1,7 @@
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::ptr::null;
 use std::rc::{Rc, Weak};
 
 use crate::ast::*;
@@ -18,6 +19,7 @@ pub struct Binder {
     levels : Vec<usize>,
     decls : Vec<*const Decl>,
     symbol2decl : HashMap<usize, *const Decl>,
+    curr_fn_decl : *const Decl,
     mode: BindMode
 }
 
@@ -84,7 +86,8 @@ impl Binder {
             levels: Vec::new(),
             decls: Vec::new(),
             symbol2decl: HashMap::new(),
-            mode: BindMode::Discover
+            mode: BindMode::Discover,
+            curr_fn_decl: null()
         }
     }
 }
@@ -102,6 +105,9 @@ impl Visitor for Binder {
                     println!("count not bind {:?}", expr)
                 }
             },
+            ExprKind::Ret(ret_expr) => {
+                ret_expr.decl = Some(self.curr_fn_decl)
+            }
             _ => {}
         }
     }
@@ -127,12 +133,14 @@ impl Visitor for Binder {
         if self.mode == BindMode::Discover {
             self.insert(decl);
         }else{
+            let decl_ptr = decl as *const Decl;
             match &mut decl.kind {
                 DeclKind::FnDecl(fn_decl) => {
                     self.push_scope();
                     for mut param in &mut fn_decl.params{
                         self.visit_decl(param);
                     }
+                    self.curr_fn_decl = decl_ptr;
                     self.visit_expr(&mut fn_decl.body);
                     self.pop_scope();
                 }

@@ -159,6 +159,10 @@ impl Builder{
         literal
     }
 
+    pub fn nothing(&mut self) -> Def {
+        self.axiom(Axiom::Nothing)
+    }
+
     pub fn unit(&mut self) -> Def{
         self.tuple([])
     }

@@ -56,7 +56,11 @@ impl HirEmitter {
     }
 
     fn get_decl(&self, decl: &Decl) -> Option<Def>{
-        self.decl2def.get(&(decl as *const Decl)).cloned()
+        self.get_decl_ptr(decl as *const Decl)
+    }
+
+    fn get_decl_ptr(&self, decl: *const Decl) -> Option<Def>{
+        self.decl2def.get(&decl).cloned()
     }
 
     fn emit_opt_ty(&mut self, ty_ref: Option<TyRef> ) -> Def{
@@ -101,7 +105,6 @@ impl HirEmitter {
 
                     let sigma = self.b.sigma_arr(member_tys);
                     self.struct2def.insert(ty_ref, sigma.clone());
-                    //self.structs.insert(self.name(struct_ty.name), sigma.clone());
 
                     for (idx, member_ty) in struct_ty.members.iter().enumerate(){
                         let mem_ty_def = self.emit_ty(*member_ty);
@@ -284,6 +287,14 @@ impl HirEmitter {
                 let arg_def = self.b.tuple_arr(arr);
                 self.b.app(&callee, &arg_def)
             }
+            ExprKind::Ret(ret_expr) => {
+                let fnc = self.get_decl_ptr(ret_expr.decl.unwrap()).unwrap();
+                let ret_val = self.remit_expr(ret_expr.expr.as_ref().unwrap());
+                let ret = self.b.ret(&fnc);
+                let ret_app = self.b.app(&ret, &ret_val);
+                self.finish_bb(&ret_app);
+                self.b.nothing()
+            }
             ExprKind::If(if_expr) => {
                 self.remit_if_expr(expr, if_expr)
             }
@@ -312,7 +323,7 @@ impl HirEmitter {
         let callee = self.b.extract(&branches, &cmp);
 
         let app = self.b.app(&callee, &unit);
-        self.finish_bb(&app, &true_fn);
+        self.jump_bb(&app, &true_fn);
 
         let left_val = self.remit_expr(&if_expr.true_branch);
 
@@ -322,17 +333,17 @@ impl HirEmitter {
             let join_fn = self.b.lam(&join_ty);
 
             let app = self.b.app(&join_fn, &left_val);
-            self.finish_bb(&app, &false_fn);
+            self.jump_bb(&app, &false_fn);
 
             let right_val = self.remit_expr(false_branch);
             let app = self.b.app(&join_fn, &right_val);
-            self.finish_bb(&app, &join_fn);
+            self.jump_bb(&app, &join_fn);
 
             let join_var = self.b.var(&join_fn);
             join_var
         }else{
             let app = self.b.app(&false_fn, &unit);
-            self.finish_bb(&app, &false_fn);
+            self.jump_bb(&app, &false_fn);
             unit
         }
     }
@@ -352,7 +363,7 @@ impl HirEmitter {
         let callee = self.b.extract(&branches, &cmp);
 
         let app = self.b.app(&callee, &unit);
-        self.finish_bb(&app, &body_fn);
+        self.jump_bb(&app, &body_fn);
 
         self.remit_expr(&while_expr.body);
 
@@ -360,14 +371,22 @@ impl HirEmitter {
         let branches2 = self.b.tuple([&body_fn, &exit_fn]);
         let callee2 = self.b.extract(&branches2, &cmp2);
 
-        self.finish_bb(&callee2, &exit_fn);
+        self.jump_bb(&callee2, &exit_fn);
         unit
     }
 
-    fn finish_bb(&mut self, body: &Def, next: &Def){
+    fn jump_bb(&mut self, body: &Def, next: &Def){
         let prev = self.cur_bb.replace(next.clone());
         self.b.set_body(&prev.unwrap(), &body);
         self.cur_bb = Some(next.clone());
+    }
+
+    fn finish_bb(&mut self, body: &Def){
+        let ty_unit = self.b.ty_unit();
+        let bot = self.b.bot();
+        let ty_unreachable = self.b.pi(&ty_unit, &bot);
+        let unreachable = self.b.lam(&ty_unreachable);
+        self.jump_bb(&body, &unreachable)
     }
 
     pub fn list(&mut self){

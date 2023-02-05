@@ -133,12 +133,13 @@ impl Parser {
 
     fn parse_block(&mut self) -> Box<Expr>{
         self.expect(TokenKind::LBrace);
-        self.parse_block_ahead()
-    }
-
-    fn parse_block_ahead(&mut self) -> Box<Expr>{
         let stmts = self.parse_statement_list();
         Box::new(Expr::new(ExprKind::Block(Block{ stmts })))
+    }
+
+    fn parse_return(&mut self) -> Box<Expr>{
+        self.expect(TokenKind::Return);
+        Box::new(Expr::new(ExprKind::Ret(RetExpr::new(Some(self.parse_expr())))))
     }
 
     fn parse_member(&mut self, i: usize) -> Box<Decl> {
@@ -311,6 +312,7 @@ impl Parser {
             TokenKind::Ident => Box::new(Expr::new(ExprKind::Ident(IdentExpr { ident_use: Box::new(IdentUse::new(self.parse_ident())) }))),
             TokenKind::If => self.parse_if(),
             TokenKind::While => self.parse_while(),
+            TokenKind::Return => self.parse_return(),
             TokenKind::LBrace => self.parse_block(),
             _ => {
                 println!("{:?}", self.kind());

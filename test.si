@@ -5,10 +5,8 @@ struct Node{
 }
 
 fn max(x : i64, y: i64) : i64{
-    while x > y{
-        if x != y{
-
-        }
+    if x != y{
+        return x
     }
 
     9

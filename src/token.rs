@@ -47,7 +47,7 @@ pub enum TokenKind {
     LBrace, RBrace,
     Comma, Semicolon, Colon, Arrow,
     Dot,
-    While, For, If, Else,
+    While, For, If, Else, Continue,
     Return,
     Let, Fn, Struct,
 
@@ -66,6 +66,7 @@ impl TokenKind {
         match self {
             TokenKind::While =>  "while",
             TokenKind::For =>  "for",
+            TokenKind::Continue =>  "continue",
             TokenKind::If =>  "if",
             TokenKind::Else =>  "else",
             TokenKind::Let =>  "let",

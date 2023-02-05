@@ -50,6 +50,7 @@ pub enum Axiom{
     App, Pi, Lam, Var, Ret,
     Literal,
     TyIdx, TyInt, TyReal,
+    Nothing,
     Add, Sub, Mul, Div,
     Gt, Ne,
     Slot, Alloc, Store, Load, Free, Ptr, Mem

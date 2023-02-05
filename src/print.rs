@@ -261,6 +261,13 @@ impl Visitor for ProgramPrinter {
                 self.visit_expr(&mut postfix_expr.expr);
                 self.print( postfix_expr.op.sign());
             },
+            ExprKind::Ret(ret_expr) => {
+                self.print("return");
+                if let Some(val) = &mut ret_expr.expr{
+                    self.space();
+                    self.visit_expr(val);
+                }
+            },
             ExprKind::FnCall(call_expr) => {
                 self.visit_expr(&mut *call_expr.callee);
                 self.print("(");

@@ -66,21 +66,26 @@ pub trait Visitor{
             ExprKind::Infix(infix) => {
                 self.visit_expr(&mut infix.lhs);
                 self.visit_expr(&mut infix.rhs);
-            },
+            }
             ExprKind::Postfix(postfix) => {
                 self.visit_expr(&mut postfix.expr);
-            },
+            }
             ExprKind::Prefix(prefix) => {
                 self.visit_expr(&mut prefix.expr);
-            },
+            }
+            ExprKind::Ret(ret_expr) => {
+                if let Some(expr) = &mut ret_expr.expr{
+                    self.visit_expr(expr);
+                }
+            }
             ExprKind::Ident(ident) => {
                 //self.visit_ident_expr( ident)
-            },
+            }
             ExprKind::Block(block) => {
                 for mut stmt in &mut block.stmts{
                     self.visit_stmt(stmt);
                 }
-            },
+            }
             ExprKind::FnCall(fn_call) => {
                 self.visit_expr(&mut fn_call.callee);
                 for mut arg in &mut fn_call.args{

@@ -123,7 +123,8 @@ pub enum ExprKind {
     While(WhileExpr),
     Prefix(PrefixExpr),
     Infix(InfixExpr),
-    Postfix(PostfixExpr)
+    Postfix(PostfixExpr),
+    Ret(RetExpr)
 }
 
 #[derive(Debug)]
@@ -156,6 +157,18 @@ pub struct PrefixExpr {
 pub struct PostfixExpr {
     pub expr: Box<Expr>,
     pub op: Op,
+}
+
+#[derive(Debug)]
+pub struct RetExpr {
+    pub expr: Option<Box<Expr>>,
+    pub decl: Option<*const Decl>,
+}
+
+impl RetExpr {
+    pub fn new(expr: Option<Box<Expr>>) -> RetExpr {
+        RetExpr { expr, decl: None }
+    }
 }
 
 #[derive(Debug)]
