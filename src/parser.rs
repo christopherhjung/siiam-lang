@@ -41,13 +41,13 @@ impl Parser {
         self.ahead().enter == enter
     }
 
-    fn ahead(&mut self) -> &mut Token {
+    fn ahead(&mut self) -> &Token {
         self.ahead_at(0)
     }
 
-    fn ahead_at(&mut self, i: usize) -> &mut Token {
+    fn ahead_at(&mut self, i: usize) -> &Token {
         assert!(i < LOOKAHEAD_SIZE, "lookahead overflow!");
-        return &mut self.ahead[(i + self.ahead_offset) % LOOKAHEAD_SIZE];
+        return &self.ahead[(i + self.ahead_offset) % LOOKAHEAD_SIZE];
     }
     fn check_kind(&mut self, kind: TokenKind) -> bool {
         kind == self.kind()
@@ -75,7 +75,6 @@ impl Parser {
     }
 
     fn expect(&mut self, kind: TokenKind) {
-        println!("{:?} {:?}", kind, self.kind());
         assert!(self.accept(kind), "Kinds do not match!");
     }
 
@@ -318,7 +317,6 @@ impl Parser {
             TokenKind::Return => self.parse_return(),
             TokenKind::LBrace => self.parse_block(),
             _ => {
-                println!("{:?}", self.kind());
                 unreachable!()
             }
         }
@@ -361,20 +359,20 @@ impl Parser {
             }
 
             if let Some(op) = self.parse_operator(){
-                if op.is_infix() {
+                lhs = if op.is_infix() {
                     if prec > op.prec() {
                         self.last_op = Some(op);
                         break;
                     }
 
-                    lhs = self.parse_infix_expr(lhs, op);
+                    self.parse_infix_expr(lhs, op)
                 } else if op.is_postfix() {
                     if prec == Prec::Top {
                         self.last_op = Some(op);
                         break;
                     }
 
-                    lhs = self.parse_postfix_expr(lhs, op);
+                    self.parse_postfix_expr(lhs, op)
                 } else {
                     unreachable!();
                 }
@@ -495,7 +493,6 @@ impl Parser {
         let mut stmts = Vec::new();
         while !self.accept(TokenKind::RBrace) {
             if !stmts.is_empty() {
-                println!("{:?}", self.ahead());
                 assert!(self.enter(TokenEnter::NL), "Statement does not start with a new line");
             }
             stmts.push(self.parse_stmts());
