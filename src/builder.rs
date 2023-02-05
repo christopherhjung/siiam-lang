@@ -293,6 +293,12 @@ impl Builder{
         self.app_raw(ax, arg)
     }
 
+    pub fn ne(&mut self, lhs: &Def, rhs: &Def) -> Def {
+        let ax = self.axiom_raw(Axiom::Ne);
+        let arg = self.tuple_arr_raw(array![lhs.link, rhs.link]);
+        self.app_raw(ax, arg)
+    }
+
     pub fn slot(&mut self, ty: &Def, mem: &Def) -> Def {
         let ax = self.axiom_raw(Axiom::Slot);
         let curry = self.node_def_link(ax, array![ty.link]);

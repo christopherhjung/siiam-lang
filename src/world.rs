@@ -51,7 +51,7 @@ pub enum Axiom{
     Literal,
     TyIdx, TyInt, TyReal,
     Add, Sub, Mul, Div,
-    Gt,
+    Gt, Ne,
     Slot, Alloc, Store, Load, Free, Ptr, Mem
 }
 

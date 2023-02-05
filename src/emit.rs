@@ -251,7 +251,8 @@ impl HirEmitter {
                     Op::Sub => self.b.sub(&lhs_val, &rhs_val),
                     Op::Mul => self.b.mul(&lhs_val, &rhs_val),
                     Op::Div => self.b.div(&lhs_val, &rhs_val),
-                    Op::Gt => self.b.div(&lhs_val, &rhs_val),
+                    Op::Gt => self.b.gt(&lhs_val, &rhs_val),
+                    Op::Ne => self.b.ne(&lhs_val, &rhs_val),
                     op => {
                         println!("{:?}", op);
                         panic!()
